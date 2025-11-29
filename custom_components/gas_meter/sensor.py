@@ -11,7 +11,13 @@ from homeassistant.components.history_stats.coordinator import HistoryStatsUpdat
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.util.dt import now
 from homeassistant.helpers.template import Template
-from .const import DOMAIN, DEFAULT_BOILER_AV_M, DEFAULT_LATEST_GAS_DATA, DEFAULT_BOILER_ENTITY
+from .const import (
+    DOMAIN,
+    DEFAULT_BOILER_AV_M,
+    DEFAULT_LATEST_GAS_DATA,
+    DEFAULT_BOILER_ENTITY,
+    UNIT_CUBIC_METERS,
+)
 import custom_components.gas_meter.file_handler as fh
 
 _LOGGER = logging.getLogger(__name__)
