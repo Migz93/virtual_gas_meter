@@ -55,14 +55,27 @@ The integration supports both **metric (m³)** and **imperial (CCF)** unit syste
 
 ### Sensors Created
 
-#### Bill Entry Mode
-- **Gas Consumption Data**: Displays your gas readings and tracks cumulative usage
+#### Both Modes
+- **Gas Consumption Data**: Displays your gas readings and tracks cumulative usage (text-based)
+- **Gas Meter Total**: Numeric meter reading for Energy Dashboard integration
 
-#### Boiler Tracking Mode
-- **Gas Consumption Data**: Displays your gas readings and tracks cumulative usage
+#### Boiler Tracking Mode (additional sensors)
 - **Consumed Gas**: Real-time estimated gas consumption based on boiler runtime
 - **Gas Meter Latest Update**: Timestamp of last meter reading
 - **Heating Interval**: Tracks boiler "on" time since last update
+
+### Energy Dashboard Integration
+
+The **Gas Meter Total** sensor (`sensor.gas_meter_total`) is designed to work with Home Assistant's [Energy Dashboard](https://www.home-assistant.io/docs/energy/). It provides:
+- `device_class: gas`
+- `state_class: total_increasing`
+- Numeric meter reading in your configured unit (m³ or CCF)
+
+**To add to Energy Dashboard:**
+1. Go to **Settings → Dashboards → Energy**
+2. Click **Add Gas Source**
+3. Select `sensor.gas_meter_total`
+4. Configure your gas cost if desired
 
 ## Services
 

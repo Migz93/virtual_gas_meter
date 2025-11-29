@@ -6,7 +6,11 @@ from datetime import datetime, timedelta
 from homeassistant.const import STATE_UNKNOWN
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 from homeassistant.core import HomeAssistant, callback, ServiceCall
-from homeassistant.components.sensor import SensorEntity
+from homeassistant.components.sensor import (
+    SensorEntity,
+    SensorDeviceClass,
+    SensorStateClass,
+)
 from homeassistant.components.history_stats.sensor import HistoryStatsSensor
 from homeassistant.components.history_stats.coordinator import HistoryStatsUpdateCoordinator, HistoryStats
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -116,6 +120,44 @@ class GasDataSensor(SensorEntity):
             return {"records": formatted_records}
         return {}
 
+
+class GasMeterTotalSensor(SensorEntity):
+    """Energy Dashboard compatible sensor for total gas consumption.
+
+    This sensor provides a numeric meter reading that can be used
+    in the Home Assistant Energy Dashboard for gas tracking.
+    """
+
+    _attr_name = "Gas Meter Total"
+    _attr_unique_id = "gas_meter_total"
+    _attr_device_class = SensorDeviceClass.GAS
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_icon = "mdi:meter-gas"
+
+    def __init__(self, hass: HomeAssistant, unit_system: str):
+        self.hass = hass
+        self._unit_system = unit_system
+        self._attr_native_unit_of_measurement = get_unit_label(unit_system)
+        self._attr_native_value = None
+
+    async def async_update(self):
+        try:
+            gas_data = await fh.load_gas_actualdata(self.hass)
+            if gas_data:
+                # Get the latest meter reading and convert to display unit
+                latest_record = gas_data[-1]
+                canonical_value = latest_record['consumed_gas']
+                self._attr_native_value = round(
+                    to_display_unit(canonical_value, self._unit_system),
+                    3
+                )
+            else:
+                self._attr_native_value = None
+        except Exception as e:
+            _LOGGER.error("Error updating gas meter total sensor: %s", str(e))
+            self._attr_native_value = None
+
+
 class CustomHistoryStatsSensor(HistoryStatsSensor):
     def __init__(self, entity_id, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -160,7 +202,11 @@ async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entitie
             ),
         ])
 
-    async_add_entities([GasDataSensor(hass, unit_system)], True)
+    # Add the data display sensor and Energy Dashboard compatible sensor
+    async_add_entities([
+        GasDataSensor(hass, unit_system),
+        GasMeterTotalSensor(hass, unit_system),
+    ], True)
     async_add_entities(sensors, update_before_add=True)
 
     async def create_history_stats_sensor(hass: HomeAssistant, config_entry):
