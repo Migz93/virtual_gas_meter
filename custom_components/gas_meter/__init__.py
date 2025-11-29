@@ -22,6 +22,7 @@ from .const import (
     MODE_BOILER_TRACKING,
     MODE_BILL_ENTRY,
 )
+from .unit_converter import to_canonical_unit, get_unit_label
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -57,6 +58,12 @@ async def _register_services(hass: HomeAssistant):
                 except ValueError:
                     _LOGGER.error(f"Invalid 'consumed_gas' value: {gas_new_data}")
                     return
+
+            # Convert input value to canonical unit (m³) if user is using imperial
+            unit_system_state = hass.states.get(f"{DOMAIN}.unit_system")
+            unit_system = unit_system_state.state if unit_system_state else DEFAULT_UNIT_SYSTEM
+            gas_new_data = to_canonical_unit(gas_new_data, unit_system)
+            _LOGGER.debug(f"consumed_gas in canonical units (m³): {gas_new_data}")
 
             gas_consume.add_record(gas_new_datetime, gas_new_data)
             _LOGGER.info("Gas meter data updated successfully.")

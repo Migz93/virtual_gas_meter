@@ -1,3 +1,4 @@
+"""Sensor platform for the Virtual Gas Meter integration."""
 import logging
 import asyncio
 
@@ -15,8 +16,13 @@ from .const import (
     DOMAIN,
     DEFAULT_BOILER_AV_M,
     DEFAULT_LATEST_GAS_DATA,
+    DEFAULT_UNIT_SYSTEM,
+    CONF_UNIT_SYSTEM,
+    CONF_OPERATING_MODE,
+    MODE_BOILER_TRACKING,
     UNIT_CUBIC_METERS,
 )
+from .unit_converter import get_unit_label, format_gas_value, to_display_unit
 import custom_components.gas_meter.file_handler as fh
 
 _LOGGER = logging.getLogger(__name__)
@@ -49,11 +55,14 @@ class CustomTemplateSensor(SensorEntity):
         return template.async_render()
 
 class GasDataSensor(SensorEntity):
+    """Sensor that displays gas consumption data with unit conversion."""
+
     _attr_name = "Gas Consumption Data"
     _attr_unique_id = "gas_consumption_data"
 
-    def __init__(self, hass: HomeAssistant):
+    def __init__(self, hass: HomeAssistant, unit_system: str):
         self.hass = hass
+        self._unit_system = unit_system
         self._state = STATE_UNKNOWN
         self._gas_data = []
 
@@ -64,7 +73,11 @@ class GasDataSensor(SensorEntity):
                 # Format the last record (most recent)
                 latest_record = self._gas_data[-1]
                 formatted_datetime = latest_record["datetime"].strftime('%Y-%m-%d %H:%M:%S')
-                formatted_gas = f"{latest_record['consumed_gas']:.2f} {UNIT_CUBIC_METERS}"
+                formatted_gas = format_gas_value(
+                    latest_record['consumed_gas'],
+                    self._unit_system,
+                    precision=2
+                )
                 self._state = f"Last record: {formatted_datetime}, consumed gas: {formatted_gas}"
             else:
                 self._state = STATE_UNKNOWN
@@ -83,8 +96,16 @@ class GasDataSensor(SensorEntity):
             formatted_records = []
             for record in self._gas_data:
                 formatted_datetime = record["datetime"].strftime('%Y-%m-%d %H:%M:%S')
-                formatted_gas = f"{record['consumed_gas']:.3f} {UNIT_CUBIC_METERS}"
-                formatted_cumulative = f"{record.get('consumed_gas_cumulated', 0):.3f} {UNIT_CUBIC_METERS}"
+                formatted_gas = format_gas_value(
+                    record['consumed_gas'],
+                    self._unit_system,
+                    precision=3
+                )
+                formatted_cumulative = format_gas_value(
+                    record.get('consumed_gas_cumulated', 0),
+                    self._unit_system,
+                    precision=3
+                )
                 formatted_record = {
                     "datetime": formatted_datetime,
                     "consumed_gas": formatted_gas,
@@ -107,27 +128,39 @@ class CustomHistoryStatsSensor(HistoryStatsSensor):
 
 async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entities: AddEntitiesCallback):
     """Set up the sensor platform and add the entities."""
-    sensors = [
-        CustomTemplateSensor(
-            hass=hass,
-            friendly_name="Consumed gas",
-            unique_id="consumed_gas",
-            state_template=f"{{{{ (states('{DOMAIN}.latest_gas_data') | float({DEFAULT_LATEST_GAS_DATA}) + (states('sensor.heating_interval_2') | float(0) * states('{DOMAIN}.average_m3_per_min') | float({DEFAULT_BOILER_AV_M})) | round(3)) }}}}",
-            unit_of_measurement=UNIT_CUBIC_METERS,
-            device_class="gas",
-            icon="mdi:gas-cylinder",
-            state_class="total",
-        ),
-        CustomTemplateSensor(
-            hass=hass,
-            friendly_name="Gas meter latest update",
-            unique_id="gas_meter_latest_update",
-            state_template=f"{{{{ states('{DOMAIN}.latest_gas_update') if states('{DOMAIN}.latest_gas_update') not in ['unknown', 'unavailable', None] }}}}",
-            icon="mdi:clock",
-        ),
-    ]
+    # Get configuration from stored data
+    config_data = hass.data.get(DOMAIN, {}).get(config_entry.entry_id, {})
+    unit_system = config_data.get(CONF_UNIT_SYSTEM, DEFAULT_UNIT_SYSTEM)
+    operating_mode = config_data.get(CONF_OPERATING_MODE, MODE_BOILER_TRACKING)
 
-    async_add_entities([GasDataSensor(hass)], True)
+    # Get the appropriate unit label for display
+    unit_label = get_unit_label(unit_system)
+
+    sensors = []
+
+    # Only create boiler tracking sensors if in boiler tracking mode
+    if operating_mode == MODE_BOILER_TRACKING:
+        sensors.extend([
+            CustomTemplateSensor(
+                hass=hass,
+                friendly_name="Consumed gas",
+                unique_id="consumed_gas",
+                state_template=f"{{{{ (states('{DOMAIN}.latest_gas_data') | float({DEFAULT_LATEST_GAS_DATA}) + (states('sensor.heating_interval_2') | float(0) * states('{DOMAIN}.average_m3_per_min') | float({DEFAULT_BOILER_AV_M})) | round(3)) }}}}",
+                unit_of_measurement=unit_label,
+                device_class="gas",
+                icon="mdi:gas-cylinder",
+                state_class="total",
+            ),
+            CustomTemplateSensor(
+                hass=hass,
+                friendly_name="Gas meter latest update",
+                unique_id="gas_meter_latest_update",
+                state_template=f"{{{{ states('{DOMAIN}.latest_gas_update') if states('{DOMAIN}.latest_gas_update') not in ['unknown', 'unavailable', None] }}}}",
+                icon="mdi:clock",
+            ),
+        ])
+
+    async_add_entities([GasDataSensor(hass, unit_system)], True)
     async_add_entities(sensors, update_before_add=True)
 
     async def create_history_stats_sensor(hass: HomeAssistant, config_entry):
@@ -183,4 +216,6 @@ async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entitie
         async_add_entities([history_stats_sensor], update_before_add=True)
         _LOGGER.info("Heating Interval sensor added successfully.")
 
-    asyncio.create_task(create_history_stats_sensor(hass, config_entry))
+    # Only create history stats sensor in boiler tracking mode
+    if operating_mode == MODE_BOILER_TRACKING:
+        asyncio.create_task(create_history_stats_sensor(hass, config_entry))

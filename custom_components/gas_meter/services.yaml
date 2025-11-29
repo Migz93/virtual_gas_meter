@@ -8,7 +8,7 @@ trigger_gas_update:
       selector:
         text:
     consumed_gas:
-      description: "The gas meter reading value. Use your meter's native unit (m³, CCF, etc.)."
+      description: "The gas meter reading value in your configured unit (m³ for metric, CCF for imperial)."
       example: 4447.816
       required: true
       selector:
