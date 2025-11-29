@@ -17,5 +17,24 @@ trigger_gas_update:
           mode: box
           step: 0.001
 
+enter_bill_reading:
+  description: "Enter a gas meter reading from your utility bill (for Bill Entry mode)."
+  fields:
+    billing_date:
+      description: "The billing date or meter reading date (format: YYYY-MM-DD or MM/DD/YYYY)."
+      example: "2025-11-01"
+      required: true
+      selector:
+        date:
+    meter_reading:
+      description: "The meter reading value in your configured unit (m³ for metric, CCF for imperial)."
+      example: 1234.56
+      required: true
+      selector:
+        number:
+          min: 0
+          mode: box
+          step: 0.01
+
 read_gas_actualdata_file:
   description: "Read and refresh the stored gas meter data file."

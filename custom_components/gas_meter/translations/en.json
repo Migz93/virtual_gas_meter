@@ -29,5 +29,39 @@
         "error": {
             "no_switches_found": "No switch entities were found in your Home Assistant instance."
         }
+    },
+    "services": {
+        "trigger_gas_update": {
+            "name": "Trigger Gas Update",
+            "description": "Update the virtual gas meter with a real meter reading (for Boiler Tracking mode).",
+            "fields": {
+                "datetime": {
+                    "name": "Date/Time",
+                    "description": "The timestamp for the gas meter reading."
+                },
+                "consumed_gas": {
+                    "name": "Gas Reading",
+                    "description": "The gas meter reading value in your configured unit."
+                }
+            }
+        },
+        "enter_bill_reading": {
+            "name": "Enter Bill Reading",
+            "description": "Enter a gas meter reading from your utility bill (for Bill Entry mode).",
+            "fields": {
+                "billing_date": {
+                    "name": "Billing Date",
+                    "description": "The billing date or meter reading date."
+                },
+                "meter_reading": {
+                    "name": "Meter Reading",
+                    "description": "The meter reading value in your configured unit."
+                }
+            }
+        },
+        "read_gas_actualdata_file": {
+            "name": "Read Gas Data",
+            "description": "Read and refresh the stored gas meter data."
+        }
     }
 }

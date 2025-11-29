@@ -161,9 +161,74 @@ async def _register_services(hass: HomeAssistant):
             _LOGGER.error("Error in read_gas_actualdata_file: %s", str(e))
             raise
             
+    async def handle_bill_entry(call: ServiceCall):
+        """Handle service call to enter a bill reading (simplified for bill entry mode)."""
+        try:
+            gas_consume = await fh.load_gas_actualdata(hass)
+
+            # Parse billing date
+            billing_date = call.data.get("billing_date")
+            if billing_date is None:
+                _LOGGER.error("Missing 'billing_date' in service call data.")
+                return
+
+            _LOGGER.info(f"billing_date received: {billing_date}")
+            if isinstance(billing_date, str):
+                try:
+                    from .datetime_handler import string_to_datetime
+                    gas_datetime = string_to_datetime(billing_date)
+                except Exception as e:
+                    _LOGGER.error(f"Error parsing billing_date string: {e}")
+                    return
+            else:
+                gas_datetime = billing_date
+
+            # Parse meter reading
+            meter_reading = call.data.get("meter_reading")
+            if meter_reading is None:
+                _LOGGER.error("Missing 'meter_reading' in service call data.")
+                return
+
+            _LOGGER.info(f"meter_reading received: {meter_reading}")
+            if isinstance(meter_reading, str):
+                try:
+                    meter_reading = float(meter_reading)
+                except ValueError:
+                    _LOGGER.error(f"Invalid 'meter_reading' value: {meter_reading}")
+                    return
+
+            # Convert input value to canonical unit (m³) if user is using imperial
+            unit_system_state = hass.states.get(f"{DOMAIN}.unit_system")
+            unit_system = unit_system_state.state if unit_system_state else DEFAULT_UNIT_SYSTEM
+            meter_reading_canonical = to_canonical_unit(meter_reading, unit_system)
+            _LOGGER.debug(f"meter_reading in canonical units (m³): {meter_reading_canonical}")
+
+            # Add record
+            gas_consume.add_record(gas_datetime, meter_reading_canonical)
+
+            # Calculate cumulative consumption if we have previous records
+            if len(gas_consume) > 1:
+                consumed_gas_cumulated = meter_reading_canonical - gas_consume[0]["consumed_gas"]
+                gas_consume[-1]["consumed_gas_cumulated"] = consumed_gas_cumulated
+
+            # Update states
+            hass.states.async_set(f"{DOMAIN}.latest_gas_update", gas_datetime)
+            hass.states.async_set(f"{DOMAIN}.latest_gas_data", meter_reading_canonical)
+
+            # Save updated gas consumption
+            await fh.save_gas_actualdata(gas_consume, hass)
+            _LOGGER.info("Bill reading added successfully.")
+
+        except Exception as e:
+            _LOGGER.error("Error in handle_bill_entry: %s", str(e))
+            raise
+
     # Register the services
     hass.services.async_register(
         DOMAIN, "trigger_gas_update", handle_trigger_service
+    )
+    hass.services.async_register(
+        DOMAIN, "enter_bill_reading", handle_bill_entry
     )
     hass.services.async_register(
         DOMAIN, "read_gas_actualdata_file", read_gas_actualdata_file
@@ -211,12 +276,18 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry):
 
     # Add the first record to the file if latest_gas_data is not 0
     if latest_gas_data != 0:
-        service_data = {
-            "datetime": now,
-            "consumed_gas": latest_gas_data,
-        }
-        _LOGGER.info("Calling handle_trigger_service to add the first gas record.")
-        await hass.services.async_call(DOMAIN, "trigger_gas_update", service_data, blocking=True)
+        # Convert initial value to canonical unit (m³) before storing
+        initial_gas_canonical = to_canonical_unit(latest_gas_data, unit_system)
+        _LOGGER.debug(f"Initial gas data: {latest_gas_data} ({unit_system}) -> {initial_gas_canonical} m³")
+
+        # Add directly to storage instead of calling service to avoid conversion happening twice
+        gas_consume = await fh.load_gas_actualdata(hass)
+        gas_consume.add_record(now, initial_gas_canonical)
+        await fh.save_gas_actualdata(gas_consume, hass)
+
+        # Update state with canonical value
+        hass.states.async_set(f"{DOMAIN}.latest_gas_data", initial_gas_canonical)
+        _LOGGER.info("Added initial gas record to storage.")
 
     await hass.config_entries.async_forward_entry_setups(config_entry, ["sensor"])
     return True
