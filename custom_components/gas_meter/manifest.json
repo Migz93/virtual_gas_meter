@@ -2,11 +2,11 @@
     "domain": "gas_meter",
     "name": "Virtual Gas Meter",
     "config_flow": true,
-    "documentation": "https://github.com/Elbereth7/virtual_gas_meter",
-    "dependencies": ["template", "history_stats"],
+    "documentation": "https://github.com/lukepatrick/virtual_gas_meter",
+    "dependencies": ["template", "history_stats", "recorder"],
     "requirements": ["aiofiles"],
-    "codeowners": ["@Elbereth7"],
-    "issue_tracker": "https://github.com/Elbereth7/virtual_gas_meter/issues",
+    "codeowners": ["@lukepatrick", "@Elbereth7"],
+    "issue_tracker": "https://github.com/lukepatrick/virtual_gas_meter/issues",
     "iot_class": "local_polling",
-    "version": "1.0.0"
+    "version": "2.0.0"
 }
