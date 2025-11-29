@@ -1,12 +1,21 @@
 trigger_gas_update:
-  description: "Trigger gas meter calculation logic."
+  description: "Update the virtual gas meter with a real meter reading."
   fields:
     datetime:
       description: "The timestamp for the gas meter reading (format: YYYY-MM-DD HH:MM)."
       example: "2025-02-12 15:51"
+      required: true
+      selector:
+        text:
     consumed_gas:
-      description: "The gas meter reading in cubic meters with a dot as a delimiter."
+      description: "The gas meter reading value. Use your meter's native unit (m³, CCF, etc.)."
       example: 4447.816
+      required: true
+      selector:
+        number:
+          min: 0
+          mode: box
+          step: 0.001
 
 read_gas_actualdata_file:
-  description: "Read gas meter file."
+  description: "Read and refresh the stored gas meter data file."

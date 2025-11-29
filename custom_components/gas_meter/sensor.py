@@ -15,7 +15,6 @@ from .const import (
     DOMAIN,
     DEFAULT_BOILER_AV_M,
     DEFAULT_LATEST_GAS_DATA,
-    DEFAULT_BOILER_ENTITY,
     UNIT_CUBIC_METERS,
 )
 import custom_components.gas_meter.file_handler as fh
@@ -28,7 +27,7 @@ class CustomTemplateSensor(SensorEntity):
         self._attr_name = friendly_name
         self._attr_unique_id = unique_id
         self._state_template = state_template
-        self._attr_unit_of_measurement = unit_of_measurement if unit_of_measurement else "m³"
+        self._attr_unit_of_measurement = unit_of_measurement if unit_of_measurement else UNIT_CUBIC_METERS
         self._attr_device_class = device_class
         self._attr_icon = icon
         self._attr_state_class = state_class
@@ -65,7 +64,7 @@ class GasDataSensor(SensorEntity):
                 # Format the last record (most recent)
                 latest_record = self._gas_data[-1]
                 formatted_datetime = latest_record["datetime"].strftime('%Y-%m-%d %H:%M:%S')
-                formatted_gas = f"{latest_record['consumed_gas']:.2f} m³"
+                formatted_gas = f"{latest_record['consumed_gas']:.2f} {UNIT_CUBIC_METERS}"
                 self._state = f"Last record: {formatted_datetime}, consumed gas: {formatted_gas}"
             else:
                 self._state = STATE_UNKNOWN
@@ -84,8 +83,8 @@ class GasDataSensor(SensorEntity):
             formatted_records = []
             for record in self._gas_data:
                 formatted_datetime = record["datetime"].strftime('%Y-%m-%d %H:%M:%S')
-                formatted_gas = f"{record['consumed_gas']:.3f} m³"
-                formatted_cumulative = f"{record.get('consumed_gas_cumulated', 0):.3f} m³"
+                formatted_gas = f"{record['consumed_gas']:.3f} {UNIT_CUBIC_METERS}"
+                formatted_cumulative = f"{record.get('consumed_gas_cumulated', 0):.3f} {UNIT_CUBIC_METERS}"
                 formatted_record = {
                     "datetime": formatted_datetime,
                     "consumed_gas": formatted_gas,
@@ -114,7 +113,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entitie
             friendly_name="Consumed gas",
             unique_id="consumed_gas",
             state_template=f"{{{{ (states('{DOMAIN}.latest_gas_data') | float({DEFAULT_LATEST_GAS_DATA}) + (states('sensor.heating_interval_2') | float(0) * states('{DOMAIN}.average_m3_per_min') | float({DEFAULT_BOILER_AV_M})) | round(3)) }}}}",
-            unit_of_measurement="m³",
+            unit_of_measurement=UNIT_CUBIC_METERS,
             device_class="gas",
             icon="mdi:gas-cylinder",
             state_class="total",
@@ -136,7 +135,11 @@ async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entitie
         end_template = Template("{{ now() }}", hass)
 
         boiler_entity = hass.states.get(f"{DOMAIN}.boiler_entity")
-        boiler_entity_id = boiler_entity.state if boiler_entity and boiler_entity.state else DEFAULT_BOILER_ENTITY
+        boiler_entity_id = boiler_entity.state if boiler_entity and boiler_entity.state not in [None, "None", "unknown", "unavailable"] else None
+
+        if not boiler_entity_id:
+            _LOGGER.warning("No boiler entity configured. History stats sensor will not be created.")
+            return
 
         history_stats = HistoryStats(
             hass=hass,
