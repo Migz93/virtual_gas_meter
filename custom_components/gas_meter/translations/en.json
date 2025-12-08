@@ -28,6 +28,24 @@
         },
         "error": {
             "no_switches_found": "No switch entities were found in your Home Assistant instance."
+        },
+        "abort": {
+            "already_configured": "Virtual Gas Meter is already configured."
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "Virtual Gas Meter Options",
+                "description": "Adjust your boiler tracking settings. The average gas consumption shown is the current calculated value, which may differ from your initial setting.",
+                "data": {
+                    "boiler_entity": "Boiler/Furnace Switch Entity",
+                    "boiler_average": "Average gas consumption per hour"
+                }
+            }
+        },
+        "abort": {
+            "no_options_available": "No options available for Bill Entry mode."
         }
     },
     "services": {

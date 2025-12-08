@@ -3,16 +3,49 @@
         "step": {
             "user": {
                 "title": "Nastavení Virtuálního Plynoměru",
-                "description": "Nakonfigurujte integraci Virtuálního Plynoměru.",
+                "description": "Vyberte systém jednotek a způsob sledování spotřeby plynu.",
                 "data": {
-                    "boiler_entity": "Vyberte spínač kotle (povinné)",
-                    "boiler_average": "(Volitelné) Zadejte průměrnou spotřebu plynu za hodinu (m³)",
-                    "latest_gas_data": "(Volitelné) Zadejte počáteční stav plynoměru (m³)"
+                    "unit_system": "Systém jednotek",
+                    "operating_mode": "Provozní režim"
+                }
+            },
+            "boiler_config": {
+                "title": "Nastavení sledování kotle/topení",
+                "description": "Nakonfigurujte sledování plynu na základě doby provozu vašeho kotle.",
+                "data": {
+                    "boiler_entity": "Entita spínače kotle/topení",
+                    "boiler_average": "Průměrná spotřeba plynu za hodinu",
+                    "latest_gas_data": "Aktuální stav plynoměru (volitelné)"
+                }
+            },
+            "bill_entry_config": {
+                "title": "Nastavení zadávání měsíčních účtů",
+                "description": "Sledujte spotřebu plynu zadáváním odečtů z měsíčních účtů.",
+                "data": {
+                    "latest_gas_data": "Aktuální stav plynoměru (volitelné)"
                 }
             }
         },
         "error": {
             "no_switches_found": "Ve vaší instanci Home Assistant nebyly nalezeny žádné spínače."
+        },
+        "abort": {
+            "already_configured": "Virtuální plynoměr je již nakonfigurován."
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "Možnosti Virtuálního Plynoměru",
+                "description": "Upravte nastavení sledování kotle. Zobrazená průměrná spotřeba plynu je aktuálně vypočítaná hodnota.",
+                "data": {
+                    "boiler_entity": "Entita spínače kotle/topení",
+                    "boiler_average": "Průměrná spotřeba plynu za hodinu"
+                }
+            }
+        },
+        "abort": {
+            "no_options_available": "Pro režim zadávání účtů nejsou k dispozici žádné možnosti."
         }
     }
 }

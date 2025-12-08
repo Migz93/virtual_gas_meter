@@ -11,6 +11,7 @@ from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorStateClass,
 )
+from homeassistant.helpers.entity import EntityCategory
 from homeassistant.components.history_stats.sensor import HistoryStatsSensor
 from homeassistant.components.history_stats.coordinator import HistoryStatsUpdateCoordinator, HistoryStats
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -205,6 +206,48 @@ class CustomHistoryStatsSensor(HistoryStatsSensor):
         await self.coordinator.async_request_refresh()
 
 
+class InternalStateSensor(SensorEntity):
+    """Base class for internal state sensors that read from hass.data."""
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        config_entry_id: str,
+        name: str,
+        unique_id: str,
+        data_key: str,
+        device_info: DeviceInfo,
+        icon: str = None,
+        unit_of_measurement: str = None,
+        device_class: SensorDeviceClass = None,
+        state_class: SensorStateClass = None,
+        entity_category: EntityCategory = EntityCategory.DIAGNOSTIC,
+    ):
+        self.hass = hass
+        self._config_entry_id = config_entry_id
+        self._attr_name = name
+        self._attr_unique_id = unique_id
+        self._desired_entity_id = f"sensor.{unique_id}"
+        self._data_key = data_key
+        self._attr_device_info = device_info
+        self._attr_icon = icon
+        self._attr_native_unit_of_measurement = unit_of_measurement
+        self._attr_device_class = device_class
+        self._attr_state_class = state_class
+        self._attr_entity_category = entity_category
+
+    async def async_added_to_hass(self):
+        """Set the entity ID when added to hass."""
+        if self.entity_id != self._desired_entity_id:
+            entity_registry = er.async_get(self.hass)
+            entity_registry.async_update_entity(self.entity_id, new_entity_id=self._desired_entity_id)
+
+    @property
+    def native_value(self):
+        """Return the state from hass.data."""
+        data = self.hass.data.get(DOMAIN, {}).get(self._config_entry_id, {})
+        return data.get(self._data_key)
+
 
 async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entities: AddEntitiesCallback):
     """Set up the sensor platform and add the entities."""
@@ -221,31 +264,90 @@ async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entitie
     unit_conversion_factor = M3_TO_CCF if unit_system == UNIT_SYSTEM_IMPERIAL else 1.0
 
     sensors = []
+    
+    # Create internal state sensors (diagnostic entities)
+    internal_sensors = [
+        InternalStateSensor(
+            hass=hass,
+            config_entry_id=config_entry.entry_id,
+            name="Unit System",
+            unique_id="vgm_unit_system",
+            data_key="unit_system",
+            device_info=device_info,
+            icon="mdi:ruler",
+        ),
+        InternalStateSensor(
+            hass=hass,
+            config_entry_id=config_entry.entry_id,
+            name="Operating Mode",
+            unique_id="vgm_operating_mode",
+            data_key="operating_mode",
+            device_info=device_info,
+            icon="mdi:cog",
+        ),
+        InternalStateSensor(
+            hass=hass,
+            config_entry_id=config_entry.entry_id,
+            name="Latest Gas Data",
+            unique_id="vgm_latest_gas_data",
+            data_key="latest_gas_data",
+            device_info=device_info,
+            icon="mdi:meter-gas",
+            unit_of_measurement=UNIT_CUBIC_METERS,
+        ),
+        InternalStateSensor(
+            hass=hass,
+            config_entry_id=config_entry.entry_id,
+            name="Latest Gas Update",
+            unique_id="vgm_latest_gas_update",
+            data_key="latest_gas_update",
+            device_info=device_info,
+            icon="mdi:clock-outline",
+            device_class=SensorDeviceClass.TIMESTAMP,
+        ),
+    ]
 
     # Only create boiler tracking sensors if in boiler tracking mode
     if operating_mode == MODE_BOILER_TRACKING:
+        internal_sensors.extend([
+            InternalStateSensor(
+                hass=hass,
+                config_entry_id=config_entry.entry_id,
+                name="Boiler Entity",
+                unique_id="vgm_boiler_entity",
+                data_key="boiler_entity",
+                device_info=device_info,
+                icon="mdi:water-boiler",
+            ),
+            InternalStateSensor(
+                hass=hass,
+                config_entry_id=config_entry.entry_id,
+                name="Average Gas Per Minute",
+                unique_id="vgm_average_m3_per_min",
+                data_key="average_m3_per_min",
+                device_info=device_info,
+                icon="mdi:speedometer",
+                unit_of_measurement=f"{UNIT_CUBIC_METERS}/min",
+            ),
+        ])
+        
         sensors.extend([
             CustomTemplateSensor(
                 hass=hass,
                 friendly_name="Consumed gas",
                 unique_id="vgm_consumed_gas",
-                state_template=f"{{{{ ((states('{DOMAIN}.latest_gas_data') | float({DEFAULT_LATEST_GAS_DATA}) + (states('sensor.vgm_heating_interval') | float(0) * states('{DOMAIN}.average_m3_per_min') | float({DEFAULT_BOILER_AV_M}))) * {unit_conversion_factor}) | round(3) }}}}",
+                state_template=f"{{{{ ((states('sensor.vgm_latest_gas_data') | float({DEFAULT_LATEST_GAS_DATA}) + (states('sensor.vgm_heating_interval') | float(0) * states('sensor.vgm_average_m3_per_min') | float({DEFAULT_BOILER_AV_M}))) * {unit_conversion_factor}) | round(3) }}}}",
                 device_info=device_info,
                 unit_of_measurement=unit_label,
                 device_class="gas",
                 icon="mdi:gas-cylinder",
                 state_class="total",
             ),
-            CustomTemplateSensor(
-                hass=hass,
-                friendly_name="Gas meter latest update",
-                unique_id="vgm_gas_meter_latest_update",
-                state_template=f"{{{{ states('{DOMAIN}.latest_gas_update') if states('{DOMAIN}.latest_gas_update') not in ['unknown', 'unavailable', None] }}}}",
-                device_info=device_info,
-                icon="mdi:clock",
-            ),
         ])
 
+    # Add all internal state sensors
+    async_add_entities(internal_sensors, True)
+    
     # Add the data display sensor and Energy Dashboard compatible sensor
     async_add_entities([
         GasDataSensor(hass, unit_system, device_info),
@@ -255,13 +357,14 @@ async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entitie
 
     async def create_history_stats_sensor(hass: HomeAssistant, config_entry, device_info):
         try:
-            start_template = Template("{{ states('sensor.vgm_gas_meter_latest_update') }}", hass)
+            start_template = Template("{{ states('sensor.vgm_latest_gas_update') }}", hass)
             end_template = Template("{{ now() }}", hass)
 
-            boiler_entity = hass.states.get(f"{DOMAIN}.boiler_entity")
-            boiler_entity_id = boiler_entity.state if boiler_entity and boiler_entity.state not in [None, "None", "unknown", "unavailable"] else None
+            # Get boiler entity from hass.data instead of raw state
+            config_data = hass.data.get(DOMAIN, {}).get(config_entry.entry_id, {})
+            boiler_entity_id = config_data.get("boiler_entity")
 
-            if not boiler_entity_id:
+            if not boiler_entity_id or boiler_entity_id in [None, "None", "unknown", "unavailable"]:
                 _LOGGER.warning("No boiler entity configured. History stats sensor will not be created.")
                 return
 

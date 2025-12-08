@@ -3,16 +3,49 @@
         "step": {
             "user": {
                 "title": "Opsætning af virtuel gasmåler",
-                "description": "Konfigurer integrationen af den virtuelle gasmåler.",
+                "description": "Vælg dit enhedssystem og hvordan du vil spore gasforbruget.",
                 "data": {
-                    "boiler_entity": "Vælg enhed for kedelafbryder (obligatorisk)",
-                    "boiler_average": "(Valgfrit) Indtast gennemsnitligt gasforbrug per time (m³)",
-                    "latest_gas_data": "(Valgfrit) Indtast initialt gasmålerstand (m³)"
+                    "unit_system": "Enhedssystem",
+                    "operating_mode": "Driftstilstand"
+                }
+            },
+            "boiler_config": {
+                "title": "Opsætning af kedel-/varmesporing",
+                "description": "Konfigurer gassporing baseret på din kedels driftstid.",
+                "data": {
+                    "boiler_entity": "Kedel-/varmeafbryder enhed",
+                    "boiler_average": "Gennemsnitligt gasforbrug per time",
+                    "latest_gas_data": "Aktuel gasmålerstand (valgfrit)"
+                }
+            },
+            "bill_entry_config": {
+                "title": "Opsætning af månedlig regningsindtastning",
+                "description": "Spor gasforbrug ved at indtaste aflæsninger fra dine månedlige regninger.",
+                "data": {
+                    "latest_gas_data": "Aktuel gasmålerstand (valgfrit)"
                 }
             }
         },
         "error": {
             "no_switches_found": "Der blev ikke fundet nogen afbryderenheder i din Home Assistant-instans."
+        },
+        "abort": {
+            "already_configured": "Virtuel gasmåler er allerede konfigureret."
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "Virtuel gasmåler indstillinger",
+                "description": "Juster dine kedelsporingsindstillinger. Det viste gennemsnitlige gasforbrug er den aktuelt beregnede værdi.",
+                "data": {
+                    "boiler_entity": "Kedel-/varmeafbryder enhed",
+                    "boiler_average": "Gennemsnitligt gasforbrug per time"
+                }
+            }
+        },
+        "abort": {
+            "no_options_available": "Ingen indstillinger tilgængelige for regningsindtastningstilstand."
         }
     }
 }

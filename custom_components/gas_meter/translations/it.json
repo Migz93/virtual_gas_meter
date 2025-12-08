@@ -3,16 +3,49 @@
         "step": {
             "user": {
                 "title": "Configurazione del Contatore del Gas Virtuale",
-                "description": "Configura l'integrazione del Contatore del Gas Virtuale.",
+                "description": "Scegli il tuo sistema di unità e come vuoi monitorare il consumo di gas.",
                 "data": {
-                    "boiler_entity": "Seleziona l'entità dell'interruttore della caldaia (obbligatorio)",
-                    "boiler_average": "(Opzionale) Inserisci il consumo medio di gas per ora (m³)",
-                    "latest_gas_data": "(Opzionale) Inserisci lo stato iniziale del contatore del gas (m³)"
+                    "unit_system": "Sistema di unità",
+                    "operating_mode": "Modalità operativa"
+                }
+            },
+            "boiler_config": {
+                "title": "Configurazione monitoraggio caldaia/riscaldamento",
+                "description": "Configura il monitoraggio del gas in base al tempo di funzionamento della tua caldaia.",
+                "data": {
+                    "boiler_entity": "Entità interruttore caldaia/riscaldamento",
+                    "boiler_average": "Consumo medio di gas per ora",
+                    "latest_gas_data": "Lettura attuale del contatore del gas (opzionale)"
+                }
+            },
+            "bill_entry_config": {
+                "title": "Configurazione inserimento bolletta mensile",
+                "description": "Monitora il consumo di gas inserendo le letture delle tue bollette mensili.",
+                "data": {
+                    "latest_gas_data": "Lettura attuale del contatore del gas (opzionale)"
                 }
             }
         },
         "error": {
             "no_switches_found": "Nessuna entità interruttore trovata nella tua istanza di Home Assistant."
+        },
+        "abort": {
+            "already_configured": "Il Contatore del Gas Virtuale è già configurato."
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "Opzioni del Contatore del Gas Virtuale",
+                "description": "Regola le impostazioni di monitoraggio della caldaia. Il consumo medio mostrato è il valore attualmente calcolato.",
+                "data": {
+                    "boiler_entity": "Entità interruttore caldaia/riscaldamento",
+                    "boiler_average": "Consumo medio di gas per ora"
+                }
+            }
+        },
+        "abort": {
+            "no_options_available": "Nessuna opzione disponibile per la modalità inserimento bolletta."
         }
     }
 }

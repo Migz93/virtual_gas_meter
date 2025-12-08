@@ -3,16 +3,49 @@
         "step": {
             "user": {
                 "title": "Configuration du Compteur de Gaz Virtuel",
-                "description": "Configurez l'intégration du Compteur de Gaz Virtuel.",
+                "description": "Choisissez votre système d'unités et comment vous souhaitez suivre la consommation de gaz.",
                 "data": {
-                    "boiler_entity": "Sélectionnez l'entité du chauffe-eau (obligatoire)",
-                    "boiler_average": "(Optionnel) Entrez la consommation moyenne de gaz par heure (m³)",
-                    "latest_gas_data": "(Optionnel) Entrez l'état initial du compteur de gaz (m³)"
+                    "unit_system": "Système d'unités",
+                    "operating_mode": "Mode de fonctionnement"
+                }
+            },
+            "boiler_config": {
+                "title": "Configuration du suivi chaudière/chauffage",
+                "description": "Configurez le suivi du gaz en fonction du temps de fonctionnement de votre chaudière.",
+                "data": {
+                    "boiler_entity": "Entité interrupteur chaudière/chauffage",
+                    "boiler_average": "Consommation moyenne de gaz par heure",
+                    "latest_gas_data": "Relevé actuel du compteur de gaz (optionnel)"
+                }
+            },
+            "bill_entry_config": {
+                "title": "Configuration saisie facture mensuelle",
+                "description": "Suivez la consommation de gaz en saisissant vos relevés de factures mensuelles.",
+                "data": {
+                    "latest_gas_data": "Relevé actuel du compteur de gaz (optionnel)"
                 }
             }
         },
         "error": {
             "no_switches_found": "Aucun interrupteur n'a été trouvé dans votre instance Home Assistant."
+        },
+        "abort": {
+            "already_configured": "Le Compteur de Gaz Virtuel est déjà configuré."
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "Options du Compteur de Gaz Virtuel",
+                "description": "Ajustez vos paramètres de suivi de chaudière. La consommation moyenne affichée est la valeur actuellement calculée.",
+                "data": {
+                    "boiler_entity": "Entité interrupteur chaudière/chauffage",
+                    "boiler_average": "Consommation moyenne de gaz par heure"
+                }
+            }
+        },
+        "abort": {
+            "no_options_available": "Aucune option disponible pour le mode saisie de facture."
         }
     }
 }

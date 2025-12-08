@@ -155,3 +155,83 @@ class GasMeterConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             entity.entity_id for entity in entity_registry.entities.values()
             if entity.entity_id.startswith("switch.")
         ]
+
+    @staticmethod
+    @config_entries.HANDLERS.register(DOMAIN)
+    def async_get_options_flow(config_entry):
+        """Get the options flow for this handler."""
+        return GasMeterOptionsFlow(config_entry)
+
+
+class GasMeterOptionsFlow(config_entries.OptionsFlow):
+    """Handle options flow for Virtual Gas Meter."""
+
+    def __init__(self, config_entry):
+        """Initialize options flow."""
+        self.config_entry = config_entry
+
+    async def async_step_init(self, user_input=None):
+        """Manage the options."""
+        # Check if we're in boiler tracking mode
+        operating_mode = self.config_entry.data.get(CONF_OPERATING_MODE, DEFAULT_OPERATING_MODE)
+        
+        if operating_mode != MODE_BOILER_TRACKING:
+            # No options available for bill entry mode
+            return self.async_abort(reason="no_options_available")
+
+        errors = {}
+
+        # Get config data from hass.data
+        config_data = self.hass.data.get(DOMAIN, {}).get(self.config_entry.entry_id, {})
+
+        if user_input is not None:
+            # Get the new values
+            new_boiler_entity = user_input.get(CONF_BOILER_ENTITY)
+            new_boiler_average_h = user_input.get(CONF_BOILER_AVERAGE)
+            new_boiler_average_min = new_boiler_average_h / 60
+
+            # Update hass.data
+            self.hass.data[DOMAIN][self.config_entry.entry_id]["boiler_entity"] = new_boiler_entity
+            self.hass.data[DOMAIN][self.config_entry.entry_id]["average_m3_per_min"] = new_boiler_average_min
+
+            # Update the config entry data
+            new_data = {**self.config_entry.data}
+            new_data[CONF_BOILER_ENTITY] = new_boiler_entity
+            new_data[CONF_BOILER_AVERAGE] = new_boiler_average_h
+            self.hass.config_entries.async_update_entry(self.config_entry, data=new_data)
+
+            return self.async_create_entry(title="", data={})
+
+        # Get current values from hass.data (these may have been updated by the integration)
+        current_boiler_entity = config_data.get("boiler_entity", self.config_entry.data.get(CONF_BOILER_ENTITY))
+
+        current_average_min = config_data.get("average_m3_per_min")
+        if current_average_min is not None and current_average_min not in [None, "None", "unknown", "unavailable"]:
+            try:
+                current_average_h = float(current_average_min) * 60
+            except (ValueError, TypeError):
+                current_average_h = self.config_entry.data.get(CONF_BOILER_AVERAGE, DEFAULT_BOILER_AV_H)
+        else:
+            current_average_h = self.config_entry.data.get(CONF_BOILER_AVERAGE, DEFAULT_BOILER_AV_H)
+
+        schema = vol.Schema({
+            vol.Required(CONF_BOILER_ENTITY, default=current_boiler_entity): selector({
+                "entity": {
+                    "domain": "switch",
+                }
+            }),
+            vol.Required(CONF_BOILER_AVERAGE, default=current_average_h): selector({
+                "number": {
+                    "min": 0,
+                    "max": 100,
+                    "step": 0.000001,
+                    "mode": "box",
+                }
+            }),
+        })
+
+        return self.async_show_form(
+            step_id="init",
+            data_schema=schema,
+            errors=errors,
+        )

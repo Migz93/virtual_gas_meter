@@ -3,16 +3,49 @@
         "step": {
             "user": {
                 "title": "Innstilling av virtuell gassmåler",
-                "description": "Konfigurer integrasjonen av den virtuelle gassmåleren.",
+                "description": "Velg enhetssystem og hvordan du vil spore gassforbruket.",
                 "data": {
-                    "boiler_entity": "Velg enhet for kjelens bryter (obligatorisk)",
-                    "boiler_average": "(Valgfritt) Skriv inn gjennomsnittlig gassforbruk per time (m³)",
-                    "latest_gas_data": "(Valgfritt) Skriv inn startverdien for gassmåleren (m³)"
+                    "unit_system": "Enhetssystem",
+                    "operating_mode": "Driftsmodus"
+                }
+            },
+            "boiler_config": {
+                "title": "Innstilling av kjel-/varmesporing",
+                "description": "Konfigurer gassporing basert på kjelens driftstid.",
+                "data": {
+                    "boiler_entity": "Kjel-/varmebryter enhet",
+                    "boiler_average": "Gjennomsnittlig gassforbruk per time",
+                    "latest_gas_data": "Nåværende gassmåleravlesning (valgfritt)"
+                }
+            },
+            "bill_entry_config": {
+                "title": "Innstilling av månedlig fakturainntasting",
+                "description": "Spor gassforbruk ved å taste inn avlesninger fra månedlige fakturaer.",
+                "data": {
+                    "latest_gas_data": "Nåværende gassmåleravlesning (valgfritt)"
                 }
             }
         },
         "error": {
             "no_switches_found": "Det ble ikke funnet noen bryter-enheter i din Home Assistant-instans."
+        },
+        "abort": {
+            "already_configured": "Virtuell gassmåler er allerede konfigurert."
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "Virtuell gassmåler innstillinger",
+                "description": "Juster kjelens sporingsinnstillinger. Det viste gjennomsnittlige gassforbruket er den nåværende beregnede verdien.",
+                "data": {
+                    "boiler_entity": "Kjel-/varmebryter enhet",
+                    "boiler_average": "Gjennomsnittlig gassforbruk per time"
+                }
+            }
+        },
+        "abort": {
+            "no_options_available": "Ingen innstillinger tilgjengelig for fakturainntastingsmodus."
         }
     }
 }

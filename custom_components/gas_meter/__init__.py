@@ -29,6 +29,17 @@ from .datetime_handler import string_to_datetime
 
 _LOGGER = logging.getLogger(__name__)
 
+
+def _get_config_entry_data(hass: HomeAssistant):
+    """Get the config entry data from hass.data."""
+    domain_data = hass.data.get(DOMAIN, {})
+    # Get the first (and should be only) config entry
+    for entry_id, data in domain_data.items():
+        if isinstance(data, dict) and "device_info" in data:
+            return entry_id, data
+    return None, {}
+
+
 async def _register_services(hass: HomeAssistant):
     """Register services for gas meter integration."""
     
@@ -62,9 +73,14 @@ async def _register_services(hass: HomeAssistant):
                     _LOGGER.error(f"Invalid 'consumed_gas' value: {gas_new_data}")
                     return
 
+            # Get config entry data
+            entry_id, config_data = _get_config_entry_data(hass)
+            if not entry_id:
+                _LOGGER.error("No config entry found for gas meter.")
+                return
+            
             # Convert input value to canonical unit (m³) if user is using imperial
-            unit_system_state = hass.states.get(f"{DOMAIN}.unit_system")
-            unit_system = unit_system_state.state if unit_system_state else DEFAULT_UNIT_SYSTEM
+            unit_system = config_data.get("unit_system", DEFAULT_UNIT_SYSTEM)
             gas_new_data = to_canonical_unit(gas_new_data, unit_system)
             _LOGGER.debug(f"consumed_gas in canonical units (m³): {gas_new_data}")
 
@@ -79,11 +95,10 @@ async def _register_services(hass: HomeAssistant):
                 start_time = dt_util.as_utc(gas_prev_datetime)
                 end_time = dt_util.as_utc(gas_new_datetime)
                 
-                # Get the actual boiler entity ID from the stored state
-                boiler_entity_state = hass.states.get(f"{DOMAIN}.boiler_entity")
-                entity_id = boiler_entity_state.state if boiler_entity_state and boiler_entity_state.state not in [None, "None", "unknown", "unavailable"] else None
+                # Get the actual boiler entity ID from hass.data
+                entity_id = config_data.get("boiler_entity")
                 
-                if not entity_id:
+                if not entity_id or entity_id in [None, "None", "unknown", "unavailable"]:
                     _LOGGER.warning("No boiler entity configured. Skipping history calculation.")
                 else:
                     history_list = await get_instance(hass).async_add_executor_job(
@@ -130,10 +145,10 @@ async def _register_services(hass: HomeAssistant):
                         av_min = consumed_gas_cumulated / min_cumulated
                         gas_consume[-1]["average m3/min"] = av_min
 
-                        hass.states.async_set(f"{DOMAIN}.average_m3_per_min", av_min)
+                        hass.data[DOMAIN][entry_id]["average_m3_per_min"] = av_min
                     
-            hass.states.async_set(f"{DOMAIN}.latest_gas_update", gas_new_datetime)
-            hass.states.async_set(f"{DOMAIN}.latest_gas_data", gas_new_data)
+            hass.data[DOMAIN][entry_id]["latest_gas_update"] = gas_new_datetime
+            hass.data[DOMAIN][entry_id]["latest_gas_data"] = gas_new_data
 
             # Save updated gas consumption
             await fh.save_gas_actualdata(gas_consume, hass)
@@ -206,9 +221,14 @@ async def _register_services(hass: HomeAssistant):
                     _LOGGER.error(f"Invalid 'usage' value: {usage}")
                     return
 
+            # Get config entry data
+            entry_id, config_data = _get_config_entry_data(hass)
+            if not entry_id:
+                _LOGGER.error("No config entry found for gas meter.")
+                return
+
             # Convert input value to canonical unit (m³) if user is using imperial
-            unit_system_state = hass.states.get(f"{DOMAIN}.unit_system")
-            unit_system = unit_system_state.state if unit_system_state else DEFAULT_UNIT_SYSTEM
+            unit_system = config_data.get("unit_system", DEFAULT_UNIT_SYSTEM)
             usage_canonical = to_canonical_unit(usage, unit_system)
             _LOGGER.debug(f"usage in canonical units (m³): {usage_canonical}")
 
@@ -223,9 +243,9 @@ async def _register_services(hass: HomeAssistant):
             gas_consume.add_record(gas_datetime, usage_canonical)
             gas_consume[-1]["consumed_gas_cumulated"] = new_cumulative
 
-            # Update states - latest_gas_data is cumulative for Energy Dashboard
-            hass.states.async_set(f"{DOMAIN}.latest_gas_update", gas_datetime)
-            hass.states.async_set(f"{DOMAIN}.latest_gas_data", new_cumulative)
+            # Update hass.data - latest_gas_data is cumulative for Energy Dashboard
+            hass.data[DOMAIN][entry_id]["latest_gas_update"] = gas_datetime
+            hass.data[DOMAIN][entry_id]["latest_gas_data"] = new_cumulative
 
             # Save updated gas consumption
             await fh.save_gas_actualdata(gas_consume, hass)
@@ -258,6 +278,16 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry):
 
     # Store config in hass.data for access by sensors
     hass.data.setdefault(DOMAIN, {})
+    
+    # Mode-specific setup
+    if operating_mode == MODE_BOILER_TRACKING:
+        boiler_entity = config_entry.data.get(CONF_BOILER_ENTITY)
+        boiler_average = config_entry.data.get(CONF_BOILER_AVERAGE, DEFAULT_BOILER_AV_H)
+        boiler_av_min = boiler_average / 60
+    else:
+        boiler_entity = None
+        boiler_av_min = 0
+    
     hass.data[DOMAIN][config_entry.entry_id] = {
         CONF_UNIT_SYSTEM: unit_system,
         CONF_OPERATING_MODE: operating_mode,
@@ -268,29 +298,18 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry):
             "model": DEVICE_MODEL,
             "sw_version": "2.0.0",
         },
+        # Internal state data
+        "unit_system": unit_system,
+        "operating_mode": operating_mode,
+        "latest_gas_data": latest_gas_data,
+        "latest_gas_update": now,
+        "boiler_entity": boiler_entity,
+        "average_m3_per_min": boiler_av_min,
     }
 
-    # Set common initial states
-    hass.states.async_set(f"{DOMAIN}.unit_system", unit_system)
-    hass.states.async_set(f"{DOMAIN}.operating_mode", operating_mode)
-    hass.states.async_set(f"{DOMAIN}.latest_gas_data", latest_gas_data)
-    hass.states.async_set(f"{DOMAIN}.latest_gas_update", now)
-
-    # Mode-specific setup
     if operating_mode == MODE_BOILER_TRACKING:
-        boiler_entity = config_entry.data.get(CONF_BOILER_ENTITY)
-        boiler_average = config_entry.data.get(CONF_BOILER_AVERAGE, DEFAULT_BOILER_AV_H)
-        boiler_av_min = boiler_average / 60
-
-        hass.states.async_set(f"{DOMAIN}.boiler_entity", boiler_entity)
-        hass.states.async_set(f"{DOMAIN}.average_m3_per_min", boiler_av_min)
-
         _LOGGER.info(f"Virtual Gas Meter configured in Boiler Tracking mode with {unit_system} units")
     else:
-        # Bill entry mode - no boiler entity needed
-        hass.states.async_set(f"{DOMAIN}.boiler_entity", None)
-        hass.states.async_set(f"{DOMAIN}.average_m3_per_min", 0)
-
         _LOGGER.info(f"Virtual Gas Meter configured in Bill Entry mode with {unit_system} units")
 
     # Add the first record to the file if latest_gas_data is not 0
@@ -304,8 +323,8 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry):
         gas_consume.add_record(now, initial_gas_canonical)
         await fh.save_gas_actualdata(gas_consume, hass)
 
-        # Update state with canonical value
-        hass.states.async_set(f"{DOMAIN}.latest_gas_data", initial_gas_canonical)
+        # Update hass.data with canonical value
+        hass.data[DOMAIN][config_entry.entry_id]["latest_gas_data"] = initial_gas_canonical
         _LOGGER.info("Added initial gas record to storage.")
 
     await hass.config_entries.async_forward_entry_setups(config_entry, ["sensor"])

@@ -3,16 +3,49 @@
         "step": {
             "user": {
                 "title": "Nastavenie virtuálneho plynomera",
-                "description": "Konfigurujte integráciu virtuálneho plynomera.",
+                "description": "Vyberte systém jednotiek a spôsob sledovania spotreby plynu.",
                 "data": {
-                    "boiler_entity": "Vyberte entitu prepínača kotla (povinné)",
-                    "boiler_average": "(Voliteľné) Zadajte priemernú spotrebu plynu za hodinu (m³)",
-                    "latest_gas_data": "(Voliteľné) Zadajte počiatočný stav plynomera (m³)"
+                    "unit_system": "Systém jednotiek",
+                    "operating_mode": "Prevádzkový režim"
+                }
+            },
+            "boiler_config": {
+                "title": "Nastavenie sledovania kotla/kúrenia",
+                "description": "Nakonfigurujte sledovanie plynu na základe doby prevádzky vášho kotla.",
+                "data": {
+                    "boiler_entity": "Entita prepínača kotla/kúrenia",
+                    "boiler_average": "Priemerná spotreba plynu za hodinu",
+                    "latest_gas_data": "Aktuálny stav plynomera (voliteľné)"
+                }
+            },
+            "bill_entry_config": {
+                "title": "Nastavenie zadávania mesačných účtov",
+                "description": "Sledujte spotrebu plynu zadávaním odčítaní z mesačných účtov.",
+                "data": {
+                    "latest_gas_data": "Aktuálny stav plynomera (voliteľné)"
                 }
             }
         },
         "error": {
             "no_switches_found": "V inštancii vášho Home Assistanta neboli nájdené žiadne entity prepínača."
+        },
+        "abort": {
+            "already_configured": "Virtuálny plynomer je už nakonfigurovaný."
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "Možnosti virtuálneho plynomera",
+                "description": "Upravte nastavenia sledovania kotla. Zobrazená priemerná spotreba plynu je aktuálne vypočítaná hodnota.",
+                "data": {
+                    "boiler_entity": "Entita prepínača kotla/kúrenia",
+                    "boiler_average": "Priemerná spotreba plynu za hodinu"
+                }
+            }
+        },
+        "abort": {
+            "no_options_available": "Pre režim zadávania účtov nie sú k dispozícii žiadne možnosti."
         }
     }
 }

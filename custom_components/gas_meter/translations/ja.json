@@ -3,16 +3,49 @@
         "step": {
             "user": {
                 "title": "仮想ガスメーターの設定",
-                "description": "仮想ガスメーターの統合を設定します。",
+                "description": "単位系とガス消費量の追跡方法を選択してください。",
                 "data": {
-                    "boiler_entity": "ボイラーのスイッチエンティティを選択してください（必須）",
-                    "boiler_average": "(オプション) 時間あたりの平均ガス消費量を入力してください (m³)",
-                    "latest_gas_data": "(オプション) ガスメーターの初期状態を入力してください (m³)"
+                    "unit_system": "単位系",
+                    "operating_mode": "動作モード"
+                }
+            },
+            "boiler_config": {
+                "title": "ボイラー/暖房追跡の設定",
+                "description": "ボイラーの稼働時間に基づいてガス追跡を設定します。",
+                "data": {
+                    "boiler_entity": "ボイラー/暖房スイッチエンティティ",
+                    "boiler_average": "時間あたりの平均ガス消費量",
+                    "latest_gas_data": "現在のガスメーター読み取り値（オプション）"
+                }
+            },
+            "bill_entry_config": {
+                "title": "月次請求書入力の設定",
+                "description": "月次請求書の読み取り値を入力してガス消費量を追跡します。",
+                "data": {
+                    "latest_gas_data": "現在のガスメーター読み取り値（オプション）"
                 }
             }
         },
         "error": {
             "no_switches_found": "あなたのHome Assistantインスタンスには、スイッチエンティティが見つかりませんでした。"
+        },
+        "abort": {
+            "already_configured": "仮想ガスメーターは既に設定されています。"
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "仮想ガスメーターのオプション",
+                "description": "ボイラー追跡設定を調整します。表示されている平均ガス消費量は現在の計算値です。",
+                "data": {
+                    "boiler_entity": "ボイラー/暖房スイッチエンティティ",
+                    "boiler_average": "時間あたりの平均ガス消費量"
+                }
+            }
+        },
+        "abort": {
+            "no_options_available": "請求書入力モードでは利用可能なオプションがありません。"
         }
     }
 }

@@ -3,16 +3,49 @@
         "step": {
             "user": {
                 "title": "Configurare contor de gaz virtual",
-                "description": "Configurează integrarea contorului de gaz virtual.",
+                "description": "Alegeți sistemul de unități și modul în care doriți să urmăriți consumul de gaz.",
                 "data": {
-                    "boiler_entity": "Selectează entitatea comutatorului cazanului (obligatoriu)",
-                    "boiler_average": "(Opțional) Introduceți consumul mediu de gaz pe oră (m³)",
-                    "latest_gas_data": "(Opțional) Introduceți starea inițială a contorului de gaz (m³)"
+                    "unit_system": "Sistem de unități",
+                    "operating_mode": "Mod de operare"
+                }
+            },
+            "boiler_config": {
+                "title": "Configurare urmărire cazan/încălzire",
+                "description": "Configurați urmărirea gazului pe baza timpului de funcționare al cazanului.",
+                "data": {
+                    "boiler_entity": "Entitate comutator cazan/încălzire",
+                    "boiler_average": "Consum mediu de gaz pe oră",
+                    "latest_gas_data": "Citire actuală contor de gaz (opțional)"
+                }
+            },
+            "bill_entry_config": {
+                "title": "Configurare introducere factură lunară",
+                "description": "Urmăriți consumul de gaz introducând citirile din facturile lunare.",
+                "data": {
+                    "latest_gas_data": "Citire actuală contor de gaz (opțional)"
                 }
             }
         },
         "error": {
             "no_switches_found": "Nu au fost găsite entități de comutator în instanța Home Assistant."
+        },
+        "abort": {
+            "already_configured": "Contorul de gaz virtual este deja configurat."
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "Opțiuni contor de gaz virtual",
+                "description": "Ajustați setările de urmărire a cazanului. Consumul mediu de gaz afișat este valoarea calculată curentă.",
+                "data": {
+                    "boiler_entity": "Entitate comutator cazan/încălzire",
+                    "boiler_average": "Consum mediu de gaz pe oră"
+                }
+            }
+        },
+        "abort": {
+            "no_options_available": "Nu sunt disponibile opțiuni pentru modul de introducere a facturii."
         }
     }
 }

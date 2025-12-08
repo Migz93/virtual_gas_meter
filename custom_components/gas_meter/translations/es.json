@@ -3,16 +3,49 @@
         "step": {
             "user": {
                 "title": "Configuración del Medidor de Gas Virtual",
-                "description": "Configura la integración del Medidor de Gas Virtual.",
+                "description": "Elige tu sistema de unidades y cómo deseas rastrear el consumo de gas.",
                 "data": {
-                    "boiler_entity": "Selecciona la entidad del interruptor de la caldera (obligatorio)",
-                    "boiler_average": "(Opcional) Ingresa el consumo medio de gas por hora (m³)",
-                    "latest_gas_data": "(Opcional) Ingresa el estado inicial del medidor de gas (m³)"
+                    "unit_system": "Sistema de unidades",
+                    "operating_mode": "Modo de operación"
+                }
+            },
+            "boiler_config": {
+                "title": "Configuración de seguimiento de caldera/calefacción",
+                "description": "Configura el seguimiento del gas basado en el tiempo de funcionamiento de tu caldera.",
+                "data": {
+                    "boiler_entity": "Entidad del interruptor de caldera/calefacción",
+                    "boiler_average": "Consumo medio de gas por hora",
+                    "latest_gas_data": "Lectura actual del medidor de gas (opcional)"
+                }
+            },
+            "bill_entry_config": {
+                "title": "Configuración de entrada de factura mensual",
+                "description": "Rastrea el consumo de gas ingresando las lecturas de tus facturas mensuales.",
+                "data": {
+                    "latest_gas_data": "Lectura actual del medidor de gas (opcional)"
                 }
             }
         },
         "error": {
             "no_switches_found": "No se encontraron entidades de interruptor en tu instancia de Home Assistant."
+        },
+        "abort": {
+            "already_configured": "El Medidor de Gas Virtual ya está configurado."
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "Opciones del Medidor de Gas Virtual",
+                "description": "Ajusta la configuración de seguimiento de tu caldera. El consumo medio mostrado es el valor calculado actualmente.",
+                "data": {
+                    "boiler_entity": "Entidad del interruptor de caldera/calefacción",
+                    "boiler_average": "Consumo medio de gas por hora"
+                }
+            }
+        },
+        "abort": {
+            "no_options_available": "No hay opciones disponibles para el modo de entrada de factura."
         }
     }
 }

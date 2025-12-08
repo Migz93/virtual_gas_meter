@@ -3,16 +3,49 @@
         "step": {
             "user": {
                 "title": "虚拟燃气表设置",
-                "description": "配置虚拟燃气表集成。",
+                "description": "选择您的单位系统以及如何跟踪燃气消耗。",
                 "data": {
-                    "boiler_entity": "选择锅炉开关实体（必填）",
-                    "boiler_average": "(可选) 输入每小时平均燃气消耗量 (m³)",
-                    "latest_gas_data": "(可选) 输入燃气表初始状态 (m³)"
+                    "unit_system": "单位系统",
+                    "operating_mode": "运行模式"
+                }
+            },
+            "boiler_config": {
+                "title": "锅炉/供暖跟踪设置",
+                "description": "根据锅炉运行时间配置燃气跟踪。",
+                "data": {
+                    "boiler_entity": "锅炉/供暖开关实体",
+                    "boiler_average": "每小时平均燃气消耗量",
+                    "latest_gas_data": "当前燃气表读数（可选）"
+                }
+            },
+            "bill_entry_config": {
+                "title": "月度账单录入设置",
+                "description": "通过输入月度账单读数来跟踪燃气消耗。",
+                "data": {
+                    "latest_gas_data": "当前燃气表读数（可选）"
                 }
             }
         },
         "error": {
             "no_switches_found": "在您的 Home Assistant 实例中未找到任何开关实体。"
+        },
+        "abort": {
+            "already_configured": "虚拟燃气表已配置。"
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "虚拟燃气表选项",
+                "description": "调整锅炉跟踪设置。显示的平均燃气消耗量是当前计算值。",
+                "data": {
+                    "boiler_entity": "锅炉/供暖开关实体",
+                    "boiler_average": "每小时平均燃气消耗量"
+                }
+            }
+        },
+        "abort": {
+            "no_options_available": "账单录入模式没有可用选项。"
         }
     }
 }
