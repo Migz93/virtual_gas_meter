@@ -15,6 +15,7 @@ from homeassistant.components.history_stats.sensor import HistoryStatsSensor
 from homeassistant.components.history_stats.coordinator import HistoryStatsUpdateCoordinator, HistoryStats
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers import entity_registry as er
 from homeassistant.util.dt import now
 from homeassistant.helpers.template import Template
 from .const import (
@@ -39,7 +40,7 @@ class CustomTemplateSensor(SensorEntity):
         self.hass = hass
         self._attr_name = friendly_name
         self._attr_unique_id = unique_id
-        self.entity_id = f"sensor.{unique_id}"
+        self._desired_entity_id = f"sensor.{unique_id}"
         self._state_template = state_template
         self._attr_unit_of_measurement = unit_of_measurement if unit_of_measurement else UNIT_CUBIC_METERS
         self._attr_device_class = device_class
@@ -47,6 +48,12 @@ class CustomTemplateSensor(SensorEntity):
         self._attr_state_class = state_class
         self._attr_device_info = device_info
         self._state = None
+
+    async def async_added_to_hass(self):
+        """Set the entity ID when added to hass."""
+        if self.entity_id != self._desired_entity_id:
+            entity_registry = er.async_get(self.hass)
+            entity_registry.async_update_entity(self.entity_id, new_entity_id=self._desired_entity_id)
 
     @property
     def native_value(self):
@@ -73,9 +80,15 @@ class GasDataSensor(SensorEntity):
         self.hass = hass
         self._unit_system = unit_system
         self._attr_device_info = device_info
-        self.entity_id = "sensor.vgm_gas_consumption_data"
+        self._desired_entity_id = "sensor.vgm_gas_consumption_data"
         self._state = STATE_UNKNOWN
         self._gas_data = []
+
+    async def async_added_to_hass(self):
+        """Set the entity ID when added to hass."""
+        if self.entity_id != self._desired_entity_id:
+            entity_registry = er.async_get(self.hass)
+            entity_registry.async_update_entity(self.entity_id, new_entity_id=self._desired_entity_id)
 
     async def async_update(self):
         try:
@@ -150,9 +163,15 @@ class GasMeterTotalSensor(SensorEntity):
         self.hass = hass
         self._unit_system = unit_system
         self._attr_device_info = device_info
-        self.entity_id = "sensor.vgm_gas_meter_total"
+        self._desired_entity_id = "sensor.vgm_gas_meter_total"
         self._attr_native_unit_of_measurement = get_unit_label(unit_system)
         self._attr_native_value = None
+
+    async def async_added_to_hass(self):
+        """Set the entity ID when added to hass."""
+        if self.entity_id != self._desired_entity_id:
+            entity_registry = er.async_get(self.hass)
+            entity_registry.async_update_entity(self.entity_id, new_entity_id=self._desired_entity_id)
 
     async def async_update(self):
         try:
