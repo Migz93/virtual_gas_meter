@@ -21,6 +21,8 @@ from .const import (
     DEFAULT_OPERATING_MODE,
     MODE_BOILER_TRACKING,
     MODE_BILL_ENTRY,
+    DEVICE_MANUFACTURER,
+    DEVICE_MODEL,
 )
 from .unit_converter import to_canonical_unit, get_unit_label
 from .datetime_handler import string_to_datetime
@@ -259,6 +261,13 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry):
     hass.data[DOMAIN][config_entry.entry_id] = {
         CONF_UNIT_SYSTEM: unit_system,
         CONF_OPERATING_MODE: operating_mode,
+        "device_info": {
+            "identifiers": {(DOMAIN, config_entry.entry_id)},
+            "name": "Virtual Gas Meter",
+            "manufacturer": DEVICE_MANUFACTURER,
+            "model": DEVICE_MODEL,
+            "sw_version": "2.0.0",
+        },
     }
 
     # Set common initial states

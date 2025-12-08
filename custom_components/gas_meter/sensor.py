@@ -14,6 +14,7 @@ from homeassistant.components.sensor import (
 from homeassistant.components.history_stats.sensor import HistoryStatsSensor
 from homeassistant.components.history_stats.coordinator import HistoryStatsUpdateCoordinator, HistoryStats
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.util.dt import now
 from homeassistant.helpers.template import Template
 from .const import (
@@ -34,7 +35,7 @@ import custom_components.gas_meter.file_handler as fh
 _LOGGER = logging.getLogger(__name__)
 
 class CustomTemplateSensor(SensorEntity):
-    def __init__(self, hass, friendly_name, unique_id, state_template, unit_of_measurement=None, device_class=None, icon=None, state_class=None):
+    def __init__(self, hass, friendly_name, unique_id, state_template, device_info, unit_of_measurement=None, device_class=None, icon=None, state_class=None):
         self.hass = hass
         self._attr_name = friendly_name
         self._attr_unique_id = unique_id
@@ -43,6 +44,7 @@ class CustomTemplateSensor(SensorEntity):
         self._attr_device_class = device_class
         self._attr_icon = icon
         self._attr_state_class = state_class
+        self._attr_device_info = device_info
         self._state = None
 
     @property
@@ -66,9 +68,10 @@ class GasDataSensor(SensorEntity):
     _attr_name = "Gas Usage History"
     _attr_unique_id = "gas_consumption_data"
 
-    def __init__(self, hass: HomeAssistant, unit_system: str):
+    def __init__(self, hass: HomeAssistant, unit_system: str, device_info: DeviceInfo):
         self.hass = hass
         self._unit_system = unit_system
+        self._attr_device_info = device_info
         self._state = STATE_UNKNOWN
         self._gas_data = []
 
@@ -141,9 +144,10 @@ class GasMeterTotalSensor(SensorEntity):
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
     _attr_icon = "mdi:meter-gas"
 
-    def __init__(self, hass: HomeAssistant, unit_system: str):
+    def __init__(self, hass: HomeAssistant, unit_system: str, device_info: DeviceInfo):
         self.hass = hass
         self._unit_system = unit_system
+        self._attr_device_info = device_info
         self._attr_native_unit_of_measurement = get_unit_label(unit_system)
         self._attr_native_value = None
 
@@ -170,9 +174,10 @@ class GasMeterTotalSensor(SensorEntity):
 
 
 class CustomHistoryStatsSensor(HistoryStatsSensor):
-    def __init__(self, entity_id, *args, **kwargs):
+    def __init__(self, entity_id, device_info, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.entity_id = entity_id
+        self._attr_device_info = device_info
 
     async def async_update(self):
         await self.coordinator.async_request_refresh()
@@ -185,6 +190,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entitie
     config_data = hass.data.get(DOMAIN, {}).get(config_entry.entry_id, {})
     unit_system = config_data.get(CONF_UNIT_SYSTEM, DEFAULT_UNIT_SYSTEM)
     operating_mode = config_data.get(CONF_OPERATING_MODE, MODE_BOILER_TRACKING)
+    device_info = config_data.get("device_info")
 
     # Get the appropriate unit label for display
     unit_label = get_unit_label(unit_system)
@@ -202,6 +208,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entitie
                 friendly_name="Consumed gas",
                 unique_id="consumed_gas",
                 state_template=f"{{{{ ((states('{DOMAIN}.latest_gas_data') | float({DEFAULT_LATEST_GAS_DATA}) + (states('sensor.heating_interval') | float(0) * states('{DOMAIN}.average_m3_per_min') | float({DEFAULT_BOILER_AV_M}))) * {unit_conversion_factor}) | round(3) }}}}",
+                device_info=device_info,
                 unit_of_measurement=unit_label,
                 device_class="gas",
                 icon="mdi:gas-cylinder",
@@ -212,18 +219,19 @@ async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entitie
                 friendly_name="Gas meter latest update",
                 unique_id="gas_meter_latest_update",
                 state_template=f"{{{{ states('{DOMAIN}.latest_gas_update') if states('{DOMAIN}.latest_gas_update') not in ['unknown', 'unavailable', None] }}}}",
+                device_info=device_info,
                 icon="mdi:clock",
             ),
         ])
 
     # Add the data display sensor and Energy Dashboard compatible sensor
     async_add_entities([
-        GasDataSensor(hass, unit_system),
-        GasMeterTotalSensor(hass, unit_system),
+        GasDataSensor(hass, unit_system, device_info),
+        GasMeterTotalSensor(hass, unit_system, device_info),
     ], True)
     async_add_entities(sensors, update_before_add=True)
 
-    async def create_history_stats_sensor(hass: HomeAssistant, config_entry):
+    async def create_history_stats_sensor(hass: HomeAssistant, config_entry, device_info):
         try:
             start_template = Template("{{ states('sensor.gas_meter_latest_update') }}", hass)
             end_template = Template("{{ now() }}", hass)
@@ -254,7 +262,8 @@ async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entitie
             await coordinator.async_refresh()
 
             history_stats_sensor = CustomHistoryStatsSensor(
-                entity_id = "sensor.heating_interval",
+                entity_id="sensor.heating_interval",
+                device_info=device_info,
                 hass=hass,
                 name="Heating Interval",
                 source_entity_id=boiler_entity_id,
@@ -281,4 +290,4 @@ async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entitie
 
     # Only create history stats sensor in boiler tracking mode
     if operating_mode == MODE_BOILER_TRACKING:
-        hass.async_create_task(create_history_stats_sensor(hass, config_entry))
+        hass.async_create_task(create_history_stats_sensor(hass, config_entry, device_info))
