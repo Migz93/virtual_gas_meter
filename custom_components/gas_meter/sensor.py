@@ -43,7 +43,7 @@ class CustomTemplateSensor(SensorEntity):
         self._attr_unique_id = unique_id
         self._desired_entity_id = f"sensor.{unique_id}"
         self._state_template = state_template
-        self._attr_unit_of_measurement = unit_of_measurement if unit_of_measurement else UNIT_CUBIC_METERS
+        self._attr_native_unit_of_measurement = unit_of_measurement if unit_of_measurement else UNIT_CUBIC_METERS
         self._attr_device_class = device_class
         self._attr_icon = icon
         self._attr_state_class = state_class
@@ -339,9 +339,9 @@ async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entitie
                 state_template=f"{{{{ ((states('sensor.vgm_latest_gas_data') | float({DEFAULT_LATEST_GAS_DATA}) + (states('sensor.vgm_heating_interval') | float(0) * states('sensor.vgm_average_m3_per_min') | float({DEFAULT_BOILER_AV_M}))) * {unit_conversion_factor}) | round(3) }}}}",
                 device_info=device_info,
                 unit_of_measurement=unit_label,
-                device_class="gas",
+                device_class=SensorDeviceClass.GAS,
                 icon="mdi:gas-cylinder",
-                state_class="total",
+                state_class=SensorStateClass.TOTAL,
             ),
         ])
 
