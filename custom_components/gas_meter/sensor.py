@@ -44,6 +44,8 @@ class CustomTemplateSensor(SensorEntity):
         self._desired_entity_id = f"sensor.{unique_id}"
         self._state_template = state_template
         self._attr_native_unit_of_measurement = unit_of_measurement if unit_of_measurement else UNIT_CUBIC_METERS
+        # Prevent HA from auto-converting the unit based on system settings
+        self._attr_suggested_unit_of_measurement = unit_of_measurement if unit_of_measurement else UNIT_CUBIC_METERS
         self._attr_device_class = device_class
         self._attr_icon = icon
         self._attr_state_class = state_class
@@ -165,7 +167,10 @@ class GasMeterTotalSensor(SensorEntity):
         self._unit_system = unit_system
         self._attr_device_info = device_info
         self._desired_entity_id = "sensor.vgm_gas_meter_total"
-        self._attr_native_unit_of_measurement = get_unit_label(unit_system)
+        unit_label = get_unit_label(unit_system)
+        self._attr_native_unit_of_measurement = unit_label
+        # Prevent HA from auto-converting the unit based on system settings
+        self._attr_suggested_unit_of_measurement = unit_label
         self._attr_native_value = None
 
     async def async_added_to_hass(self):
