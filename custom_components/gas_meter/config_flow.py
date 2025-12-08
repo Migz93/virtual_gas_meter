@@ -1,4 +1,5 @@
 from homeassistant import config_entries
+from homeassistant.core import callback
 import voluptuous as vol
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.selector import selector
@@ -156,8 +157,9 @@ class GasMeterConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if entity.entity_id.startswith("switch.")
         ]
 
-    @classmethod
-    def async_get_options_flow(cls, config_entry):
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry):
         """Get the options flow for this handler."""
         return GasMeterOptionsFlow()
 
