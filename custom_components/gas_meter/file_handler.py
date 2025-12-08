@@ -82,9 +82,9 @@ async def _migrate_from_pickle(hass) -> GasConsume | None:
             data = await file.read()
             gas_consume = pickle.loads(data)
 
-        # Backup the pickle file
+        # Backup the pickle file (run blocking I/O in executor)
         backup_path = pickle_path.with_suffix(".pkl.bak")
-        pickle_path.rename(backup_path)
+        await hass.async_add_executor_job(pickle_path.rename, backup_path)
         _LOGGER.info(f"Legacy pickle file backed up to {backup_path}")
 
         _LOGGER.info(f"Successfully migrated {len(gas_consume)} records from pickle to JSON")

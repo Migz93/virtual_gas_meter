@@ -31,6 +31,10 @@ class GasMeterConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(self, user_input=None):
         """Step 1: Select unit system and operating mode."""
+        # Prevent duplicate entries - only one instance allowed
+        await self.async_set_unique_id(DOMAIN)
+        self._abort_if_unique_id_configured()
+        
         errors = {}
 
         if user_input is not None:

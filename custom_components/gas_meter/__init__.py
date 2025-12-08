@@ -23,6 +23,7 @@ from .const import (
     MODE_BILL_ENTRY,
 )
 from .unit_converter import to_canonical_unit, get_unit_label
+from .datetime_handler import string_to_datetime
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -40,7 +41,7 @@ async def _register_services(hass: HomeAssistant):
             _LOGGER.info(f"datetime_received: {datetime_received}")
             if isinstance(datetime_received, str):
                 try:
-                    gas_new_datetime = fh.string_to_datetime(datetime_received)
+                    gas_new_datetime = string_to_datetime(datetime_received)
                 except Exception as e:
                     _LOGGER.error(f"Error parsing datetime string: {e}")
                     return
@@ -75,52 +76,59 @@ async def _register_services(hass: HomeAssistant):
                 # Get the state history of the switch between the two timestamps
                 start_time = dt_util.as_utc(gas_prev_datetime)
                 end_time = dt_util.as_utc(gas_new_datetime)
-                entity_id = f"{DOMAIN}.boiler_entity"
-                history_list = await get_instance(hass).async_add_executor_job(
-                    get_significant_states, hass, start_time, end_time, [entity_id]
-                    )
-
-                # Calculate the total time the switch was "on"
-                total_on_time = 0
-                previous_state = None
-                previous_time = start_time
-                for state in history_list.get(entity_id, []):
-                    current_time = state.last_changed
-
-                    if previous_state == "on":
-                        total_on_time += (current_time - previous_time).total_seconds()
-
-                    previous_state = state.state
-                    previous_time = current_time
-
-                # Handle the last segment
-                if previous_state == "on":
-                    total_on_time += (end_time - previous_time).total_seconds()
-
-                total_min = total_on_time / 60  # Total time in minutes
-
-                # Count m3/min for the current interval ("m3/min for interval")
-                gas_data_diff = gas_new_data - gas_prev_data
-                if total_min:
-                    gas_consume[-1]["m3/min for interval"] = gas_data_diff / total_min
                 
-                # Count how much gas was consumed from the first data till the last data ("consumed_gas_cumulated")
-                consumed_gas_cumulated = gas_new_data - gas_consume[0]["consumed_gas"]
-                gas_consume[-1]["consumed_gas_cumulated"] = consumed_gas_cumulated
+                # Get the actual boiler entity ID from the stored state
+                boiler_entity_state = hass.states.get(f"{DOMAIN}.boiler_entity")
+                entity_id = boiler_entity_state.state if boiler_entity_state and boiler_entity_state.state not in [None, "None", "unknown", "unavailable"] else None
+                
+                if not entity_id:
+                    _LOGGER.warning("No boiler entity configured. Skipping history calculation.")
+                else:
+                    history_list = await get_instance(hass).async_add_executor_job(
+                        get_significant_states, hass, start_time, end_time, [entity_id]
+                        )
 
-                # Count how many minutes the boiler was working starting from the first data till the last data ("min_cumulated")
-                if len(gas_consume) == 2:
-                    min_cumulated = total_min
-                elif len(gas_consume) > 2:
-                    min_cumulated = total_min + gas_consume[-2]["min_cumulated"]
-                gas_consume[-1]["min_cumulated"] = min_cumulated
+                    # Calculate the total time the switch was "on"
+                    total_on_time = 0
+                    previous_state = None
+                    previous_time = start_time
+                    for state in history_list.get(entity_id, []):
+                        current_time = state.last_changed
 
-                # Count m3/min for the whole period between the first data till the last data ("average m3/min")
-                if min_cumulated:
-                    av_min = consumed_gas_cumulated / min_cumulated
-                    gas_consume[-1]["average m3/min"] = av_min
+                        if previous_state == "on":
+                            total_on_time += (current_time - previous_time).total_seconds()
 
-                    hass.states.async_set(f"{DOMAIN}.average_m3_per_min", av_min)
+                        previous_state = state.state
+                        previous_time = current_time
+
+                    # Handle the last segment
+                    if previous_state == "on":
+                        total_on_time += (end_time - previous_time).total_seconds()
+
+                    total_min = total_on_time / 60  # Total time in minutes
+
+                    # Count m3/min for the current interval ("m3/min for interval")
+                    gas_data_diff = gas_new_data - gas_prev_data
+                    if total_min:
+                        gas_consume[-1]["m3/min for interval"] = gas_data_diff / total_min
+                    
+                    # Count how much gas was consumed from the first data till the last data ("consumed_gas_cumulated")
+                    consumed_gas_cumulated = gas_new_data - gas_consume[0]["consumed_gas"]
+                    gas_consume[-1]["consumed_gas_cumulated"] = consumed_gas_cumulated
+
+                    # Count how many minutes the boiler was working starting from the first data till the last data ("min_cumulated")
+                    if len(gas_consume) == 2:
+                        min_cumulated = total_min
+                    elif len(gas_consume) > 2:
+                        min_cumulated = total_min + gas_consume[-2].get("min_cumulated", 0)
+                    gas_consume[-1]["min_cumulated"] = min_cumulated
+
+                    # Count m3/min for the whole period between the first data till the last data ("average m3/min")
+                    if min_cumulated:
+                        av_min = consumed_gas_cumulated / min_cumulated
+                        gas_consume[-1]["average m3/min"] = av_min
+
+                        hass.states.async_set(f"{DOMAIN}.average_m3_per_min", av_min)
                     
             hass.states.async_set(f"{DOMAIN}.latest_gas_update", gas_new_datetime)
             hass.states.async_set(f"{DOMAIN}.latest_gas_data", gas_new_data)
@@ -175,7 +183,6 @@ async def _register_services(hass: HomeAssistant):
             _LOGGER.info(f"billing_date received: {billing_date}")
             if isinstance(billing_date, str):
                 try:
-                    from .datetime_handler import string_to_datetime
                     gas_datetime = string_to_datetime(billing_date)
                 except Exception as e:
                     _LOGGER.error(f"Error parsing billing_date string: {e}")
@@ -298,6 +305,11 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry):
 
 async def async_unload_entry(hass: HomeAssistant, config_entry: ConfigEntry):
     """Unload the integration."""
+    # Unregister services
+    hass.services.async_remove(DOMAIN, "trigger_gas_update")
+    hass.services.async_remove(DOMAIN, "enter_bill_usage")
+    hass.services.async_remove(DOMAIN, "read_gas_actualdata_file")
+    
     # Clean up hass.data
     if DOMAIN in hass.data and config_entry.entry_id in hass.data[DOMAIN]:
         hass.data[DOMAIN].pop(config_entry.entry_id)

@@ -2,7 +2,7 @@
 import logging
 import asyncio
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from homeassistant.const import STATE_UNKNOWN
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 from homeassistant.core import HomeAssistant, callback, ServiceCall
@@ -25,6 +25,8 @@ from .const import (
     CONF_OPERATING_MODE,
     MODE_BOILER_TRACKING,
     UNIT_CUBIC_METERS,
+    UNIT_SYSTEM_IMPERIAL,
+    M3_TO_CCF,
 )
 from .unit_converter import get_unit_label, format_gas_value, to_display_unit
 import custom_components.gas_meter.file_handler as fh
@@ -186,6 +188,9 @@ async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entitie
 
     # Get the appropriate unit label for display
     unit_label = get_unit_label(unit_system)
+    
+    # Conversion factor: 1.0 for metric (no change), M3_TO_CCF for imperial
+    unit_conversion_factor = M3_TO_CCF if unit_system == UNIT_SYSTEM_IMPERIAL else 1.0
 
     sensors = []
 
@@ -196,7 +201,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entitie
                 hass=hass,
                 friendly_name="Consumed gas",
                 unique_id="consumed_gas",
-                state_template=f"{{{{ (states('{DOMAIN}.latest_gas_data') | float({DEFAULT_LATEST_GAS_DATA}) + (states('sensor.heating_interval_2') | float(0) * states('{DOMAIN}.average_m3_per_min') | float({DEFAULT_BOILER_AV_M})) | round(3)) }}}}",
+                state_template=f"{{{{ ((states('{DOMAIN}.latest_gas_data') | float({DEFAULT_LATEST_GAS_DATA}) + (states('sensor.heating_interval') | float(0) * states('{DOMAIN}.average_m3_per_min') | float({DEFAULT_BOILER_AV_M}))) * {unit_conversion_factor}) | round(3) }}}}",
                 unit_of_measurement=unit_label,
                 device_class="gas",
                 icon="mdi:gas-cylinder",
@@ -219,58 +224,61 @@ async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entitie
     async_add_entities(sensors, update_before_add=True)
 
     async def create_history_stats_sensor(hass: HomeAssistant, config_entry):
-        start_template = Template("{{ states('sensor.gas_meter_latest_update') }}", hass)
-        end_template = Template("{{ now() }}", hass)
+        try:
+            start_template = Template("{{ states('sensor.gas_meter_latest_update') }}", hass)
+            end_template = Template("{{ now() }}", hass)
 
-        boiler_entity = hass.states.get(f"{DOMAIN}.boiler_entity")
-        boiler_entity_id = boiler_entity.state if boiler_entity and boiler_entity.state not in [None, "None", "unknown", "unavailable"] else None
+            boiler_entity = hass.states.get(f"{DOMAIN}.boiler_entity")
+            boiler_entity_id = boiler_entity.state if boiler_entity and boiler_entity.state not in [None, "None", "unknown", "unavailable"] else None
 
-        if not boiler_entity_id:
-            _LOGGER.warning("No boiler entity configured. History stats sensor will not be created.")
-            return
-
-        history_stats = HistoryStats(
-            hass=hass,
-            entity_id=boiler_entity_id,
-            entity_states=["on"],
-            start=start_template,
-            end=end_template,
-            duration=None,
-        )
-
-        coordinator = HistoryStatsUpdateCoordinator(
-            hass=hass,
-            history_stats=history_stats,
-            config_entry=config_entry,
-            name="Heating Interval"
-        )
-
-        await coordinator.async_refresh()
-
-        history_stats_sensor = CustomHistoryStatsSensor(
-            entity_id = "sensor.heating_interval",
-            hass=hass,
-            name="Heating Interval",
-            source_entity_id=boiler_entity_id,
-            sensor_type="time",
-            unique_id="heating_interval",
-            coordinator=coordinator
-        )
-
-        @callback
-        def _handle_coordinator_update():
-            """Handle updated data from the coordinator."""
-            if history_stats_sensor.hass is None:
-                _LOGGER.warning("Skipping update: hass is not available for %s", history_stats_sensor.name)
+            if not boiler_entity_id:
+                _LOGGER.warning("No boiler entity configured. History stats sensor will not be created.")
                 return
 
-            history_stats_sensor._attr_state = coordinator.data
-            history_stats_sensor.async_write_ha_state()
+            history_stats = HistoryStats(
+                hass=hass,
+                entity_id=boiler_entity_id,
+                entity_states=["on"],
+                start=start_template,
+                end=end_template,
+                duration=None,
+            )
 
-        coordinator.async_add_listener(_handle_coordinator_update)
-        async_add_entities([history_stats_sensor], update_before_add=True)
-        _LOGGER.info("Heating Interval sensor added successfully.")
+            coordinator = HistoryStatsUpdateCoordinator(
+                hass=hass,
+                history_stats=history_stats,
+                config_entry=config_entry,
+                name="Heating Interval"
+            )
+
+            await coordinator.async_refresh()
+
+            history_stats_sensor = CustomHistoryStatsSensor(
+                entity_id = "sensor.heating_interval",
+                hass=hass,
+                name="Heating Interval",
+                source_entity_id=boiler_entity_id,
+                sensor_type="time",
+                unique_id="heating_interval",
+                coordinator=coordinator
+            )
+
+            @callback
+            def _handle_coordinator_update():
+                """Handle updated data from the coordinator."""
+                if history_stats_sensor.hass is None:
+                    _LOGGER.warning("Skipping update: hass is not available for %s", history_stats_sensor.name)
+                    return
+
+                history_stats_sensor._attr_state = coordinator.data
+                history_stats_sensor.async_write_ha_state()
+
+            coordinator.async_add_listener(_handle_coordinator_update)
+            async_add_entities([history_stats_sensor], update_before_add=True)
+            _LOGGER.info("Heating Interval sensor added successfully.")
+        except Exception as e:
+            _LOGGER.error("Failed to create history stats sensor: %s", str(e))
 
     # Only create history stats sensor in boiler tracking mode
     if operating_mode == MODE_BOILER_TRACKING:
-        asyncio.create_task(create_history_stats_sensor(hass, config_entry))
+        hass.async_create_task(create_history_stats_sensor(hass, config_entry))
