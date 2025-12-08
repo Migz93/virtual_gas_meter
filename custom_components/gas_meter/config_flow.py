@@ -157,7 +157,6 @@ class GasMeterConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         ]
 
     @staticmethod
-    @config_entries.HANDLERS.register(DOMAIN)
     def async_get_options_flow(config_entry):
         """Get the options flow for this handler."""
         return GasMeterOptionsFlow(config_entry)
