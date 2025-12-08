@@ -39,6 +39,7 @@ class CustomTemplateSensor(SensorEntity):
         self.hass = hass
         self._attr_name = friendly_name
         self._attr_unique_id = unique_id
+        self.entity_id = f"sensor.{unique_id}"
         self._state_template = state_template
         self._attr_unit_of_measurement = unit_of_measurement if unit_of_measurement else UNIT_CUBIC_METERS
         self._attr_device_class = device_class
@@ -72,6 +73,7 @@ class GasDataSensor(SensorEntity):
         self.hass = hass
         self._unit_system = unit_system
         self._attr_device_info = device_info
+        self.entity_id = "sensor.vgm_gas_consumption_data"
         self._state = STATE_UNKNOWN
         self._gas_data = []
 
@@ -148,6 +150,7 @@ class GasMeterTotalSensor(SensorEntity):
         self.hass = hass
         self._unit_system = unit_system
         self._attr_device_info = device_info
+        self.entity_id = "sensor.vgm_gas_meter_total"
         self._attr_native_unit_of_measurement = get_unit_label(unit_system)
         self._attr_native_value = None
 
@@ -174,9 +177,9 @@ class GasMeterTotalSensor(SensorEntity):
 
 
 class CustomHistoryStatsSensor(HistoryStatsSensor):
-    def __init__(self, entity_id, device_info, *args, **kwargs):
+    def __init__(self, sensor_entity_id, device_info, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.entity_id = entity_id
+        self.entity_id = sensor_entity_id
         self._attr_device_info = device_info
 
     async def async_update(self):
@@ -233,7 +236,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entitie
 
     async def create_history_stats_sensor(hass: HomeAssistant, config_entry, device_info):
         try:
-            start_template = Template("{{ states('sensor.gas_meter_latest_update') }}", hass)
+            start_template = Template("{{ states('sensor.vgm_gas_meter_latest_update') }}", hass)
             end_template = Template("{{ now() }}", hass)
 
             boiler_entity = hass.states.get(f"{DOMAIN}.boiler_entity")
@@ -262,7 +265,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entitie
             await coordinator.async_refresh()
 
             history_stats_sensor = CustomHistoryStatsSensor(
-                entity_id="sensor.vgm_heating_interval",
+                sensor_entity_id="sensor.vgm_heating_interval",
                 device_info=device_info,
                 hass=hass,
                 name="Heating Interval",
