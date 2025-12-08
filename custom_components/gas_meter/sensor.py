@@ -31,13 +31,13 @@ from .const import (
     UNIT_SYSTEM_IMPERIAL,
     M3_TO_CCF,
 )
-from .unit_converter import get_unit_label, format_gas_value, to_display_unit
+from .unit_converter import get_unit_label, format_gas_value, to_display_unit, get_default_precision
 import custom_components.gas_meter.file_handler as fh
 
 _LOGGER = logging.getLogger(__name__)
 
 class CustomTemplateSensor(SensorEntity):
-    def __init__(self, hass, friendly_name, unique_id, state_template, device_info, unit_of_measurement=None, device_class=None, icon=None, state_class=None):
+    def __init__(self, hass, friendly_name, unique_id, state_template, device_info, unit_of_measurement=None, device_class=None, icon=None, state_class=None, suggested_display_precision=None):
         self.hass = hass
         self._attr_name = friendly_name
         self._attr_unique_id = unique_id
@@ -50,6 +50,7 @@ class CustomTemplateSensor(SensorEntity):
         self._attr_icon = icon
         self._attr_state_class = state_class
         self._attr_device_info = device_info
+        self._attr_suggested_display_precision = suggested_display_precision
         self._state = None
 
     async def async_added_to_hass(self):
@@ -102,13 +103,11 @@ class GasDataSensor(SensorEntity):
                 formatted_datetime = latest_record["datetime"].strftime('%Y-%m-%d')
                 formatted_usage = format_gas_value(
                     latest_record['consumed_gas'],
-                    self._unit_system,
-                    precision=2
+                    self._unit_system
                 )
                 formatted_total = format_gas_value(
                     latest_record.get('consumed_gas_cumulated', latest_record['consumed_gas']),
-                    self._unit_system,
-                    precision=2
+                    self._unit_system
                 )
                 self._state = f"{formatted_datetime}: {formatted_usage} (Total: {formatted_total})"
             else:
@@ -130,13 +129,11 @@ class GasDataSensor(SensorEntity):
                 formatted_datetime = record["datetime"].strftime('%Y-%m-%d')
                 formatted_usage = format_gas_value(
                     record['consumed_gas'],
-                    self._unit_system,
-                    precision=2
+                    self._unit_system
                 )
                 formatted_cumulative = format_gas_value(
                     record.get('consumed_gas_cumulated', record['consumed_gas']),
-                    self._unit_system,
-                    precision=2
+                    self._unit_system
                 )
                 formatted_record = {
                     "date": formatted_datetime,
@@ -165,7 +162,9 @@ class GasMeterTotalSensor(SensorEntity):
     def __init__(self, hass: HomeAssistant, unit_system: str, device_info: DeviceInfo):
         self.hass = hass
         self._unit_system = unit_system
+        self._precision = get_default_precision(unit_system)
         self._attr_device_info = device_info
+        self._attr_suggested_display_precision = self._precision
         self._desired_entity_id = "sensor.vgm_gas_meter_total"
         unit_label = get_unit_label(unit_system)
         self._attr_native_unit_of_measurement = unit_label
@@ -192,7 +191,7 @@ class GasMeterTotalSensor(SensorEntity):
                 )
                 self._attr_native_value = round(
                     to_display_unit(canonical_value, self._unit_system),
-                    3
+                    self._precision
                 )
             else:
                 self._attr_native_value = None
@@ -227,6 +226,7 @@ class InternalStateSensor(SensorEntity):
         device_class: SensorDeviceClass = None,
         state_class: SensorStateClass = None,
         entity_category: EntityCategory = EntityCategory.DIAGNOSTIC,
+        suggested_display_precision: int = None,
     ):
         self.hass = hass
         self._config_entry_id = config_entry_id
@@ -240,6 +240,7 @@ class InternalStateSensor(SensorEntity):
         self._attr_device_class = device_class
         self._attr_state_class = state_class
         self._attr_entity_category = entity_category
+        self._attr_suggested_display_precision = suggested_display_precision
 
     async def async_added_to_hass(self):
         """Set the entity ID when added to hass."""
@@ -267,6 +268,9 @@ async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entitie
     
     # Conversion factor: 1.0 for metric (no change), M3_TO_CCF for imperial
     unit_conversion_factor = M3_TO_CCF if unit_system == UNIT_SYSTEM_IMPERIAL else 1.0
+    
+    # Get unit-appropriate precision (3 for m³, 2 for CCF)
+    precision = get_default_precision(unit_system)
 
     sensors = []
     
@@ -299,6 +303,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entitie
             device_info=device_info,
             icon="mdi:meter-gas",
             unit_of_measurement=UNIT_CUBIC_METERS,
+            suggested_display_precision=precision,
         ),
         InternalStateSensor(
             hass=hass,
@@ -341,12 +346,13 @@ async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entitie
                 hass=hass,
                 friendly_name="Consumed gas",
                 unique_id="vgm_consumed_gas",
-                state_template=f"{{{{ ((states('sensor.vgm_latest_gas_data') | float({DEFAULT_LATEST_GAS_DATA}) + (states('sensor.vgm_heating_interval') | float(0) * states('sensor.vgm_average_m3_per_min') | float({DEFAULT_BOILER_AV_M}))) * {unit_conversion_factor}) | round(3) }}}}",
+                state_template=f"{{{{ ((states('sensor.vgm_latest_gas_data') | float({DEFAULT_LATEST_GAS_DATA}) + (states('sensor.vgm_heating_interval') | float(0) * states('sensor.vgm_average_m3_per_min') | float({DEFAULT_BOILER_AV_M}))) * {unit_conversion_factor}) | round({precision}) }}}}",
                 device_info=device_info,
                 unit_of_measurement=unit_label,
                 device_class=SensorDeviceClass.GAS,
                 icon="mdi:gas-cylinder",
                 state_class=SensorStateClass.TOTAL,
+                suggested_display_precision=precision,
             ),
         ])
 
