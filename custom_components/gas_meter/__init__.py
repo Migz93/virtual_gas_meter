@@ -150,7 +150,7 @@ async def _register_services(hass: HomeAssistant):
                 _LOGGER.info("Gas record: %s", record)
             # Get the GasDataSensor entity object
             entity_registry = er.async_get(hass)
-            gas_data_sensor_entity_id = entity_registry.async_get_entity_id("sensor", DOMAIN, "gas_consumption_data")
+            gas_data_sensor_entity_id = entity_registry.async_get_entity_id("sensor", DOMAIN, "vgm_gas_consumption_data")
 
             if gas_data_sensor_entity_id:
                 gas_data_sensor_entity = hass.states.get(gas_data_sensor_entity_id)

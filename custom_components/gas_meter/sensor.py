@@ -66,7 +66,7 @@ class GasDataSensor(SensorEntity):
     """Sensor that displays gas usage history with unit conversion."""
 
     _attr_name = "Gas Usage History"
-    _attr_unique_id = "gas_consumption_data"
+    _attr_unique_id = "vgm_gas_consumption_data"
 
     def __init__(self, hass: HomeAssistant, unit_system: str, device_info: DeviceInfo):
         self.hass = hass
@@ -139,7 +139,7 @@ class GasMeterTotalSensor(SensorEntity):
     """
 
     _attr_name = "Gas Meter Total"
-    _attr_unique_id = "gas_meter_total"
+    _attr_unique_id = "vgm_gas_meter_total"
     _attr_device_class = SensorDeviceClass.GAS
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
     _attr_icon = "mdi:meter-gas"
@@ -206,8 +206,8 @@ async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entitie
             CustomTemplateSensor(
                 hass=hass,
                 friendly_name="Consumed gas",
-                unique_id="consumed_gas",
-                state_template=f"{{{{ ((states('{DOMAIN}.latest_gas_data') | float({DEFAULT_LATEST_GAS_DATA}) + (states('sensor.heating_interval') | float(0) * states('{DOMAIN}.average_m3_per_min') | float({DEFAULT_BOILER_AV_M}))) * {unit_conversion_factor}) | round(3) }}}}",
+                unique_id="vgm_consumed_gas",
+                state_template=f"{{{{ ((states('{DOMAIN}.latest_gas_data') | float({DEFAULT_LATEST_GAS_DATA}) + (states('sensor.vgm_heating_interval') | float(0) * states('{DOMAIN}.average_m3_per_min') | float({DEFAULT_BOILER_AV_M}))) * {unit_conversion_factor}) | round(3) }}}}",
                 device_info=device_info,
                 unit_of_measurement=unit_label,
                 device_class="gas",
@@ -217,7 +217,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entitie
             CustomTemplateSensor(
                 hass=hass,
                 friendly_name="Gas meter latest update",
-                unique_id="gas_meter_latest_update",
+                unique_id="vgm_gas_meter_latest_update",
                 state_template=f"{{{{ states('{DOMAIN}.latest_gas_update') if states('{DOMAIN}.latest_gas_update') not in ['unknown', 'unavailable', None] }}}}",
                 device_info=device_info,
                 icon="mdi:clock",
@@ -262,13 +262,13 @@ async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entitie
             await coordinator.async_refresh()
 
             history_stats_sensor = CustomHistoryStatsSensor(
-                entity_id="sensor.heating_interval",
+                entity_id="sensor.vgm_heating_interval",
                 device_info=device_info,
                 hass=hass,
                 name="Heating Interval",
                 source_entity_id=boiler_entity_id,
                 sensor_type="time",
-                unique_id="heating_interval",
+                unique_id="vgm_heating_interval",
                 coordinator=coordinator
             )
 
