@@ -156,8 +156,8 @@ class GasMeterConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if entity.entity_id.startswith("switch.")
         ]
 
-    @staticmethod
-    def async_get_options_flow(config_entry):
+    @classmethod
+    def async_get_options_flow(cls, config_entry):
         """Get the options flow for this handler."""
         return GasMeterOptionsFlow()
 
