@@ -1,6 +1,9 @@
 {
   "name": "Virtual Gas Meter",
-  "hide": false,
-  "domains": ["gas_meter"],
-  "homeassistant": "2024.12.2"
+  "hacs": "1.1.0",
+  "homeassistant": "2025.4.4",
+  "render_readme": true,
+  "zip_release": true,
+  "filename": "virtual_gas_meter.zip",
+  "hide_default_branch": true
 }
