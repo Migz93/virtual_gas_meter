@@ -1,4 +1,11 @@
 # Virtual Gas Meter for Home Assistant
+[![GitHub Release][releases-shield]][releases]
+[![GitHub Activity][commits-shield]][commits]
+[![License][license-shield]][license]
+
+[![hacs][hacsbadge]][hacs]
+[![Maintainer][maintenance-shield]][user_profile]
+[![BuyMeCoffee][buymecoffeebadge]][buymecoffee]
 
 ## Overview
 
@@ -215,3 +222,17 @@ Contributions are welcome! Feel free to submit pull requests or report issues in
 ## License
 
 This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+
+[buymecoffee]: https://www.buymeacoffee.com/Migz93
+[buymecoffeebadge]: https://img.shields.io/badge/buy%20me%20a%20coffee-donate-yellow.svg?style=for-the-badge
+[commits-shield]: https://img.shields.io/github/commit-activity/y/migz93/virtual_gas_meter.svg?style=for-the-badge
+[commits]: https://github.com/migz93/virtual_gas_meter/commits/main
+[hacs]: https://hacs.xyz
+[hacsbadge]: https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge
+[exampleimg]: https://raw.githubusercontent.com/migz93/virtual_gas_meter/main/example.png
+[license]: https://github.com/migz93/virtual_gas_meter/blob/main/LICENSE
+[license-shield]: https://img.shields.io/github/license/custom-components/integration_blueprint.svg?style=for-the-badge
+[maintenance-shield]: https://img.shields.io/badge/maintainer-Migz93-blue.svg?style=for-the-badge
+[releases-shield]: https://img.shields.io/github/release/migz93/virtual_gas_meter.svg?style=for-the-badge
+[releases]: https://github.com/migz93/virtual_gas_meter/releases
+[user_profile]: https://github.com/migz93
