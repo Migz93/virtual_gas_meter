@@ -15,7 +15,7 @@ jobs:
 
       - name: Patch manifest and zip
         run: |
-          sed -i 's/v0.0.0/${{ steps.version.outputs.version }}/' custom_components/virtual_gas_meter/manifest.json
+          sed -i 's/"version": ".*"/"version": "${{ steps.version.outputs.version }}"/' custom_components/virtual_gas_meter/manifest.json
 
           cd custom_components/virtual_gas_meter/
           zip ../../virtual_gas_meter.zip ./* -x '.*'
