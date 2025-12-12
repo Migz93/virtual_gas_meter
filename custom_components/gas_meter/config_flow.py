@@ -1,158 +1,155 @@
-"""Config flow for Virtual Gas Meter integration."""
-from homeassistant import config_entries
+"""Config flow for Virtual Gas Meter v3."""
+from __future__ import annotations
+
+import logging
+from typing import Any
+
 import voluptuous as vol
-from homeassistant.helpers import entity_registry as er
-from homeassistant.helpers.selector import selector
+
+from homeassistant import config_entries
+from homeassistant.const import CONF_ENTITY_ID
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import selector
+import homeassistant.helpers.config_validation as cv
+
 from .const import (
     DOMAIN,
+    UNIT_M3,
+    UNIT_CCF,
+    UNIT_OPTIONS,
     CONF_BOILER_ENTITY,
-    CONF_BOILER_AVERAGE,
-    CONF_LATEST_GAS_DATA,
-    CONF_UNIT_SYSTEM,
-    CONF_OPERATING_MODE,
-    DEFAULT_BOILER_AV_H,
-    DEFAULT_LATEST_GAS_DATA,
-    DEFAULT_UNIT_SYSTEM,
-    DEFAULT_OPERATING_MODE,
-    UNIT_SYSTEM_METRIC,
-    UNIT_SYSTEM_IMPERIAL,
-    MODE_BOILER_TRACKING,
-    MODE_BILL_ENTRY,
+    CONF_UNIT,
+    CONF_INITIAL_METER_READING,
+    CONF_INITIAL_AVERAGE_RATE,
+    ALLOWED_BOILER_DOMAINS,
 )
 
+_LOGGER = logging.getLogger(__name__)
 
-class GasMeterConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Handle a config flow for the Virtual Gas Meter integration."""
 
-    VERSION = 2
+class VirtualGasMeterConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+    """Handle a config flow for Virtual Gas Meter."""
 
-    def __init__(self):
-        """Initialize the config flow."""
-        self._data = {}
+    VERSION = 1
 
-    async def async_step_user(self, user_input=None):
-        """Step 1: Select unit system and operating mode."""
-        # Prevent duplicate entries - only one instance allowed
-        await self.async_set_unique_id(DOMAIN)
-        self._abort_if_unique_id_configured()
-        
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.FlowResult:
+        """Handle the initial step."""
+        # Enforce single instance
+        if self._async_current_entries():
+            return self.async_abort(
+                reason="single_instance_allowed",
+                description_placeholders={
+                    "message": "Virtual Gas Meter only supports one instance. Remove the existing one to reconfigure."
+                },
+            )
+
         errors = {}
 
         if user_input is not None:
-            self._data.update(user_input)
-            # Route to appropriate next step based on mode
-            if user_input[CONF_OPERATING_MODE] == MODE_BOILER_TRACKING:
-                return await self.async_step_boiler_config()
+            # Validate boiler entity exists and is in allowed domains
+            boiler_entity = user_input[CONF_BOILER_ENTITY]
+            domain = boiler_entity.split(".")[0] if "." in boiler_entity else ""
+            
+            if domain not in ALLOWED_BOILER_DOMAINS:
+                errors[CONF_BOILER_ENTITY] = "invalid_domain"
             else:
-                return await self.async_step_bill_entry_config()
+                # Create the config entry
+                return self.async_create_entry(
+                    title="Virtual Gas Meter",
+                    data=user_input,
+                )
 
-        schema = vol.Schema({
-            vol.Required(CONF_UNIT_SYSTEM, default=DEFAULT_UNIT_SYSTEM): selector({
-                "select": {
-                    "options": [
-                        {"value": UNIT_SYSTEM_METRIC, "label": "Metric (m³)"},
-                        {"value": UNIT_SYSTEM_IMPERIAL, "label": "Imperial (CCF)"},
-                    ],
-                    "mode": "dropdown",
-                }
-            }),
-            vol.Required(CONF_OPERATING_MODE, default=DEFAULT_OPERATING_MODE): selector({
-                "select": {
-                    "options": [
-                        {"value": MODE_BOILER_TRACKING, "label": "Boiler/Furnace Tracking"},
-                        {"value": MODE_BILL_ENTRY, "label": "Monthly Bill Entry"},
-                    ],
-                    "mode": "dropdown",
-                }
-            }),
-        })
+        # Build the schema
+        data_schema = vol.Schema(
+            {
+                vol.Required(CONF_BOILER_ENTITY): selector.EntitySelector(
+                    selector.EntitySelectorConfig(
+                        domain=ALLOWED_BOILER_DOMAINS,
+                    )
+                ),
+                vol.Required(CONF_UNIT, default=UNIT_M3): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=[
+                            selector.SelectOptionDict(value=UNIT_M3, label="Cubic Meters (m³)"),
+                            selector.SelectOptionDict(value=UNIT_CCF, label="Hundred Cubic Feet (CCF)"),
+                        ],
+                        mode=selector.SelectSelectorMode.DROPDOWN,
+                    )
+                ),
+                vol.Required(CONF_INITIAL_METER_READING, default=0.0): cv.positive_float,
+                vol.Required(CONF_INITIAL_AVERAGE_RATE, default=0.0): cv.positive_float,
+            }
+        )
 
         return self.async_show_form(
             step_id="user",
-            data_schema=schema,
+            data_schema=data_schema,
             errors=errors,
+            description_placeholders={
+                "unit_note": "Unit selection cannot be changed after setup."
+            },
         )
 
-    async def async_step_boiler_config(self, user_input=None):
-        """Step 2a: Configure boiler tracking mode."""
+    @staticmethod
+    @callback
+    def async_get_options_flow(
+        config_entry: config_entries.ConfigEntry,
+    ) -> VirtualGasMeterOptionsFlow:
+        """Get the options flow for this handler."""
+        return VirtualGasMeterOptionsFlow(config_entry)
+
+
+class VirtualGasMeterOptionsFlow(config_entries.OptionsFlow):
+    """Handle options flow for Virtual Gas Meter."""
+
+    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
+        """Initialize options flow."""
+        self.config_entry = config_entry
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.FlowResult:
+        """Manage the options."""
         errors = {}
 
         if user_input is not None:
-            self._data.update(user_input)
-            return self.async_create_entry(
-                title="Virtual Gas Meter",
-                data=self._data,
-            )
+            # Validate boiler entity
+            boiler_entity = user_input[CONF_BOILER_ENTITY]
+            domain = boiler_entity.split(".")[0] if "." in boiler_entity else ""
+            
+            if domain not in ALLOWED_BOILER_DOMAINS:
+                errors[CONF_BOILER_ENTITY] = "invalid_domain"
+            else:
+                # Update config entry data
+                self.hass.config_entries.async_update_entry(
+                    self.config_entry,
+                    data={**self.config_entry.data, **user_input},
+                )
+                return self.async_create_entry(title="", data={})
 
-        # Get list of switch entities
-        boiler_entities = await self._get_switch_entities()
+        # Get current values
+        current_boiler = self.config_entry.data.get(CONF_BOILER_ENTITY)
+        current_rate = self.config_entry.data.get(CONF_INITIAL_AVERAGE_RATE, 0.0)
+        current_unit = self.config_entry.data.get(CONF_UNIT, UNIT_M3)
 
-        if not boiler_entities:
-            errors["base"] = "no_switches_found"
-
-        schema = vol.Schema({
-            vol.Required(CONF_BOILER_ENTITY): selector({
-                "entity": {
-                    "domain": "switch",
-                }
-            }),
-            vol.Optional(CONF_BOILER_AVERAGE, default=DEFAULT_BOILER_AV_H): selector({
-                "number": {
-                    "min": 0,
-                    "max": 100,
-                    "step": 0.001,
-                    "mode": "box",
-                }
-            }),
-            vol.Optional(CONF_LATEST_GAS_DATA, default=DEFAULT_LATEST_GAS_DATA): selector({
-                "number": {
-                    "min": 0,
-                    "max": 1000000,
-                    "step": 0.001,
-                    "mode": "box",
-                }
-            }),
-        })
-
-        return self.async_show_form(
-            step_id="boiler_config",
-            data_schema=schema,
-            errors=errors,
+        data_schema = vol.Schema(
+            {
+                vol.Required(CONF_BOILER_ENTITY, default=current_boiler): selector.EntitySelector(
+                    selector.EntitySelectorConfig(
+                        domain=ALLOWED_BOILER_DOMAINS,
+                    )
+                ),
+                vol.Required(CONF_INITIAL_AVERAGE_RATE, default=current_rate): cv.positive_float,
+            }
         )
 
-    async def async_step_bill_entry_config(self, user_input=None):
-        """Step 2b: Configure bill entry mode."""
-        errors = {}
-
-        if user_input is not None:
-            self._data.update(user_input)
-            return self.async_create_entry(
-                title="Virtual Gas Meter",
-                data=self._data,
-            )
-
-        schema = vol.Schema({
-            vol.Optional(CONF_LATEST_GAS_DATA, default=DEFAULT_LATEST_GAS_DATA): selector({
-                "number": {
-                    "min": 0,
-                    "max": 1000000,
-                    "step": 0.001,
-                    "mode": "box",
-                }
-            }),
-        })
-
         return self.async_show_form(
-            step_id="bill_entry_config",
-            data_schema=schema,
+            step_id="init",
+            data_schema=data_schema,
             errors=errors,
+            description_placeholders={
+                "current_unit": f"Current unit: {current_unit} (cannot be changed)",
+            },
         )
-
-    async def _get_switch_entities(self):
-        """Retrieve switch entities from the entity registry."""
-        entity_registry = er.async_get(self.hass)
-
-        return [
-            entity.entity_id for entity in entity_registry.entities.values()
-            if entity.entity_id.startswith("switch.")
-        ]

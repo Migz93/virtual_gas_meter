@@ -1,47 +1,45 @@
-"""Constants for the Virtual Gas Meter integration."""
+"""Constants for Virtual Gas Meter v3."""
 
 DOMAIN = "gas_meter"
 
-# Configuration keys
-CONF_BOILER_ENTITY = "boiler_entity"
-CONF_BOILER_AVERAGE = "boiler_average"
-CONF_LATEST_GAS_DATA = "latest_gas_data"
-CONF_UNIT_SYSTEM = "unit_system"
-CONF_OPERATING_MODE = "operating_mode"
-
-# Unit system options
-UNIT_SYSTEM_METRIC = "metric"
-UNIT_SYSTEM_IMPERIAL = "imperial"
-
-# Unit labels for display
-UNIT_CUBIC_METERS = "m³"
+# Unit options
+UNIT_M3 = "m3"
 UNIT_CCF = "CCF"
-UNIT_CF = "ft³"
-UNIT_THERMS = "therms"
+UNIT_OPTIONS = [UNIT_M3, UNIT_CCF]
 
-# Operating modes
-MODE_BOILER_TRACKING = "boiler_tracking"
-MODE_BILL_ENTRY = "bill_entry"
+# Config entry keys
+CONF_BOILER_ENTITY = "boiler_entity_id"
+CONF_UNIT = "unit"
+CONF_INITIAL_METER_READING = "initial_meter_reading"
+CONF_INITIAL_AVERAGE_RATE = "initial_average_rate"
 
-# Conversion factors (to/from canonical m³)
-# 1 CCF = 100 cubic feet = 2.83168 cubic meters
-CCF_TO_M3 = 2.83168
-M3_TO_CCF = 1 / CCF_TO_M3
-# 1 cubic foot = 0.0283168 cubic meters
-CF_TO_M3 = 0.0283168
-M3_TO_CF = 1 / CF_TO_M3
-# 1 therm ≈ 100 cubic feet of natural gas (approximate)
-THERM_TO_M3 = 2.83168
-M3_TO_THERM = 1 / THERM_TO_M3
+# Storage keys
+STORAGE_VERSION = 1
+STORAGE_KEY = "gas_meter_v3"
 
-# Default values
-DEFAULT_BOILER_AV_H = 0.64153071524727  # m³ per hour
-DEFAULT_BOILER_AV_M = DEFAULT_BOILER_AV_H / 60  # m³ per minute
-DEFAULT_LATEST_GAS_DATA = 0
-DEFAULT_BOILER_ENTITY = None  # No default - user must select
-DEFAULT_UNIT_SYSTEM = UNIT_SYSTEM_METRIC
-DEFAULT_OPERATING_MODE = MODE_BOILER_TRACKING
+# Sensor entity IDs
+SENSOR_GAS_METER_TOTAL = "vgm_gas_meter_total"
+SENSOR_CONSUMED_GAS = "vgm_consumed_gas"
+SENSOR_HEATING_INTERVAL = "vgm_heating_interval"
+
+# Service names
+SERVICE_REAL_METER_READING_UPDATE = "real_meter_reading_update"
+
+# Service parameters
+ATTR_METER_READING = "meter_reading"
+ATTR_TIMESTAMP = "timestamp"
+ATTR_RECALCULATE_AVERAGE_RATE = "recalculate_average_rate"
 
 # Device info
+DEVICE_NAME = "Virtual Gas Meter"
 DEVICE_MANUFACTURER = "Virtual Gas Meter"
-DEVICE_MODEL = "Gas Consumption Tracker"
+DEVICE_MODEL = "Boiler Runtime Estimator"
+
+# Allowed boiler entity domains
+ALLOWED_BOILER_DOMAINS = ["switch", "climate", "binary_sensor", "sensor"]
+
+# Update interval (seconds)
+UPDATE_INTERVAL = 60
+
+# Decimal places
+DECIMAL_PLACES = 3

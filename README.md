@@ -2,23 +2,20 @@
 
 ## Overview
 
-The **Virtual Gas Meter** is a Home Assistant integration designed to track gas consumption. It supports two operating modes:
+> **Note:** This integration was built from the ground up using AI (Claude Sonnet 4.5), based on the original code from the repositories listed in the [Credits](#credits) section. As always, exercise caution with AI-generated code.
 
-1. **Boiler/Furnace Tracking Mode**: Estimates gas consumption based on boiler runtime and average gas usage rate. Users can periodically enter real meter readings to improve accuracy.
-
-2. **Monthly Bill Entry Mode**: Simple tracking by entering gas meter readings from your utility bills. Ideal for users who want to track usage without a smart boiler sensor.
+Virtual Gas Meter is a Home Assistant integration designed to estimate gas consumption based on boiler runtime. It provides a virtual gas meter that tracks consumption in real-time and allows periodic calibration with real meter readings to maintain accuracy.
 
 The integration supports both **metric (m³)** and **imperial (CCF)** unit systems.
 
+**Note:** Imperial (CCF) units are currently untested.
+
 ## Features
 
-- **Dual Operating Modes**: Choose between boiler tracking or simple bill entry
+- **Real-time Gas Consumption Tracking**: Estimates gas usage based on boiler runtime
 - **Unit System Support**: Works with metric (m³) or imperial (CCF) units
-- **Virtual Gas Meter Calculation**: Estimates gas consumption using time-based calculations (boiler mode)
-- **Sensor Integration**: Creates Home Assistant sensors to track gas usage
-- **Manual Data Entry**: Enter real gas meter readings from utility bills
-- **Historical Data Tracking**: Stores consumption history with cumulative totals
-- **JSON-based Storage**: Uses Home Assistant's native storage system
+- **Calibration System**: Enter real meter readings to recalculate and improve accuracy
+- **Energy Dashboard Integration**: Primary sensor designed for Home Assistant's Energy Dashboard
 - **UI-based Configuration**: Easy setup through Home Assistant's integration flow
 
 ## Installation
@@ -29,7 +26,7 @@ The integration supports both **metric (m³)** and **imperial (CCF)** unit syste
    - Open HACS in Home Assistant.
    - Navigate to `Integrations` and click the three-dot menu.
    - Select `Custom Repositories`.
-   - Add the repository URL: `https://github.com/lukepatrick/virtual_gas_meter`.
+   - Add the repository URL: `https://github.com/Migz93/virtual_gas_meter`.
    - Choose `Integration` as the category and click `Add`.
 3. **Download the Integration:**
    - Search for `Virtual Gas Meter` in HACS and download it.
@@ -43,30 +40,51 @@ The integration supports both **metric (m³)** and **imperial (CCF)** unit syste
 ## Configuration
 
 ### Adding the Integration
-1. Navigate to **Settings** > **Devices & Services**.
-2. Click **"Add Integration"** and search for `Virtual Gas Meter`.
-3. **Step 1 - Basic Setup:**
-   - Select your **Unit System**: Metric (m³) or Imperial (CCF)
-   - Select your **Operating Mode**: Boiler/Furnace Tracking or Monthly Bill Entry
-4. **Step 2 - Mode-specific Setup:**
-   - **Boiler Tracking**: Select your boiler switch entity, enter average gas consumption per hour, and optionally enter current meter reading
-   - **Bill Entry**: Optionally enter your current meter reading
-5. Click **"Submit"**.
+1. Navigate to **Settings** > **Devices & Services**
+2. Click **"Add Integration"** and search for `Virtual Gas Meter`
+3. Configure the following settings:
+   - **Boiler Entity**: Select the entity that represents your boiler (switch, climate, binary_sensor, or sensor)
+   - **Unit System**: Choose Metric (m³) or Imperial (CCF)
+   - **Initial Meter Reading**: Enter your current gas meter reading
+   - **Initial Average Hourly Consumption**: Enter the estimated average gas consumption per hour when the boiler is running
+4. Click **"Submit"**
+
+**Important Notes:**
+- Only one instance of Virtual Gas Meter can exist
+- Reconfiguration is not currently supported - to change settings, you must delete the integration and set it up again
 
 ### Sensors Created
 
-#### Both Modes
-- **Gas Consumption Data**: Displays your gas readings and tracks cumulative usage (text-based)
-- **Gas Meter Total**: Numeric meter reading for Energy Dashboard integration
+The integration creates **three sensors** under a single device:
 
-#### Boiler Tracking Mode (additional sensors)
-- **Consumed Gas**: Real-time estimated gas consumption based on boiler runtime
-- **Gas Meter Latest Update**: Timestamp of last meter reading
-- **Heating Interval**: Tracks boiler "on" time since last update
+#### sensor.vgm_gas_meter_total
+**Primary Energy Dashboard Source**
+- Displays the total virtual gas meter reading which can be fed into your Home Assistant Energy Dashboard.
+- Device class: `gas`
+- State class: `total_increasing`
+- Unit: m³ or CCF (based on your configuration)
+- **Attributes:**
+  - `last_real_meter_reading`: Last calibrated meter reading
+  - `last_real_meter_timestamp`: When the last calibration occurred
+  - `average_rate_per_h`: Current average hourly consumption rate
+  - `boiler_entity_id`: The boiler entity being monitored
+  - `unit`: Your chosen unit system
+
+#### sensor.vgm_consumed_gas
+**Estimated Gas Consumed Since Last Calibration**
+- Shows gas consumed since the last real meter reading update
+- Resets to 0 when you enter a new real meter reading
+- Increases while the boiler is running based on the average rate
+
+#### sensor.vgm_heating_interval
+**Boiler Runtime Since Last Calibration**
+- Displays boiler runtime in human-readable format (e.g., "2h 37m")
+- Resets to "0h 0m" when you enter a new real meter reading
+- Tracks cumulative runtime between calibrations
 
 ### Energy Dashboard Integration
 
-The **Gas Meter Total** sensor (`sensor.gas_meter_total`) is designed to work with Home Assistant's [Energy Dashboard](https://www.home-assistant.io/docs/energy/). It provides:
+The **Gas Meter Total** sensor (`sensor.vgm_gas_meter_total`) is designed to work with Home Assistant's [Energy Dashboard](https://www.home-assistant.io/docs/energy/). It provides:
 - `device_class: gas`
 - `state_class: total_increasing`
 - Numeric meter reading in your configured unit (m³ or CCF)
@@ -74,59 +92,75 @@ The **Gas Meter Total** sensor (`sensor.gas_meter_total`) is designed to work wi
 **To add to Energy Dashboard:**
 1. Go to **Settings → Dashboards → Energy**
 2. Click **Add Gas Source**
-3. Select `sensor.gas_meter_total`
+3. Select `sensor.vgm_gas_meter_total`
 4. Configure your gas cost if desired
 
 ## Services
 
-### `gas_meter.enter_bill_usage`
-**For Bill Entry Mode** - Enter the "Actual Usage" from your utility bill for a billing period.
+### `gas_meter.real_meter_reading_update`
+Update the virtual gas meter with a real meter reading to calibrate and improve accuracy.
 
-- **Fields:**
-  - `billing_date`: The billing period end date
-  - `usage`: The actual gas usage for this period in your configured unit (m³ or CCF)
+**Why use this service?**
+- The virtual gas meter **estimates** consumption based on boiler runtime
+- By entering real meter readings periodically, the system **recalculates** the average hourly consumption rate
+- This keeps the virtual meter accurate over time as usage patterns change
 
-- **Service Call Example:**
-  ```yaml
-  service: gas_meter.enter_bill_usage
-  data:
-    billing_date: "2025-11-03"
-    usage: 24.95
-  ```
+**Parameters:**
 
-> **Note:** Enter the "Actual Usage" amount from your bill (the gas consumed during that billing period), not the meter reading. The integration will automatically calculate cumulative totals.
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `meter_reading` | float | Yes | - | Your current real gas meter reading (in your configured unit) |
+| `timestamp` | datetime | No | now() | Optional timestamp for the reading |
+| `recalculate_average_rate` | boolean | No | true | If true, recalculates the average hourly rate based on actual usage |
 
-### `gas_meter.trigger_gas_update`
-**For Boiler Tracking Mode** - Update the virtual gas meter with a real meter reading to improve accuracy.
+**Service Call Examples:**
 
-- **Why use this?**
-  - The virtual gas meter **estimates** gas consumption using the average rate
-  - By entering real readings, the system **adjusts** the average gas consumption for better accuracy
-  - If no real readings are provided, the virtual gas meter relies on the initial average entered during setup
+Basic usage (recalculates average rate):
+```yaml
+service: gas_meter.real_meter_reading_update
+data:
+  meter_reading: 4447.816
+```
 
-- **Fields:**
-  - `datetime`: Timestamp for the gas reading (format: `YYYY-MM-DD HH:MM`)
-  - `consumed_gas`: Gas meter reading in your configured unit (m³ or CCF)
+With custom timestamp:
+```yaml
+service: gas_meter.real_meter_reading_update
+data:
+  meter_reading: 4447.816
+  timestamp: "2025-02-12 15:51:00"
+```
 
-- **Service Call Example:**
-  ```yaml
-  service: gas_meter.trigger_gas_update
-  data:
-    datetime: "2025-02-12 15:51"
-    consumed_gas: 4447.816
-  ```
+Snap meter total without recalculating rate:
+```yaml
+service: gas_meter.real_meter_reading_update
+data:
+  meter_reading: 4447.816
+  recalculate_average_rate: false
+```
 
-### `gas_meter.read_gas_actualdata_file`
-Reads and refreshes the stored gas meter data.
+**Behavior:**
+1. **Validation**: The new reading must be greater than or equal to the previous reading
+2. **If runtime is zero**: Simply snaps the meter total to the new reading
+3. **If runtime > 0 and recalculate is true**: Calculates actual consumption and updates the average hourly rate
+4. **Resets**: Consumed gas and heating interval reset to zero after update
 
-- **Service Call Example:**
-  ```yaml
-  service: gas_meter.read_gas_actualdata_file
-  ```
+## Usage
 
-## Data Storage
+### Daily Operation
+The integration automatically tracks boiler runtime and estimates gas consumption based on the configured average hourly rate. No manual intervention is required for day-to-day operation.
 
-Gas consumption data is stored in Home Assistant's `.storage` directory as `gas_meter_data` (JSON format). Data is always stored internally in cubic meters (m³) for consistency, and converted to your display unit automatically.
+### Calibration for Accuracy
+Periodically enter real meter readings using the `gas_meter.real_meter_reading_update` service to maintain accuracy:
+
+1. Check your physical gas meter reading
+2. Call the service with your current meter reading
+3. The system automatically recalculates the average hourly consumption rate based on actual usage
+4. The virtual meter stays synchronized with your real meter
+
+### Best Practices
+- **Calibrate monthly**: Enter real meter readings at least once per month for best accuracy
+- **Calibrate after runtime**: Take readings when the boiler has been running for a while (provides more accurate rate calculations)
+- **Monitor trends**: Use the Energy Dashboard to track long-term consumption patterns
 
 ## Code Overview
 
@@ -134,335 +168,45 @@ The integration consists of the following files:
 
 | File | Description |
 |------|-------------|
-| `__init__.py` | Integration setup, service registration, and data persistence |
-| `sensor.py` | Sensor entities for gas tracking |
-| `config_flow.py` | UI-based configuration flow |
-| `unit_converter.py` | Unit conversion utilities (m³ ↔ CCF) |
-| `datetime_handler.py` | Date/time parsing and conversion |
-| `file_handler.py` | JSON-based storage using Home Assistant Store |
-| `gas_consume.py` | Gas consumption record management |
-| `const.py` | Constants and default values |
+| `__init__.py` | Integration setup, runtime engine, service registration, and persistence |
+| `sensor.py` | Three sensor entities (gas meter total, consumed gas, heating interval) |
+| `config_flow.py` | UI-based configuration flow with single-instance enforcement |
+| `const.py` | Constants and configuration keys |
 | `manifest.json` | Integration metadata |
 | `services.yaml` | Service definitions |
-| `translations/en.json` | UI translations |
+| `strings.json` | Base UI strings |
+| `translations/en.json` | English translations |
 
-## Dashboard Examples
+## Upgrading from v1.x or v2.x
 
-### Bill Entry Mode
+**Version 3.0 is a complete rewrite** with breaking changes:
 
-#### Option 1: Built-in HA Cards with Input Helpers
+### What's Changed
+- **Removed**: Bill Entry Mode (only boiler tracking mode remains)
+- **Removed**: Services `enter_bill_usage`, `trigger_gas_update`, `read_gas_actualdata_file`
+- **New**: Single service `real_meter_reading_update` with improved calibration logic
+- **New**: Simplified sensor set (3 sensors instead of 6+)
+- **New**: Single-instance enforcement
+- **Changed**: Sensor entity IDs now use `vgm_` prefix
 
-This approach uses standard Home Assistant cards and input helpers for a user-friendly bill entry experience.
+### Migration Steps
+1. **Backup your data** - Note your current meter reading and average rate
+2. **Remove the old integration** from Settings → Devices & Services
+3. **Restart Home Assistant**
+4. **Add the new v3 integration** with your backed-up values
+5. **Update automations** to use the new service name
+6. **Update dashboards** to use new sensor entity IDs
+7. **Reconfigure Energy Dashboard** with the new `sensor.vgm_gas_meter_total`
 
-**Step 1: Create Input Helpers**
+## Support
 
-Add to `configuration.yaml`:
-```yaml
-input_datetime:
-  gas_billing_date:
-    name: Billing Period End Date
-    has_date: true
-    has_time: false
-    icon: mdi:calendar
-
-input_number:
-  gas_usage:
-    name: Actual Usage
-    min: 0
-    max: 10000
-    step: 0.01
-    mode: box
-    icon: mdi:meter-gas
-    unit_of_measurement: "CCF"  # Change to "m³" for metric
-
-input_button:
-  submit_gas_usage:
-    name: Submit Usage
-    icon: mdi:send
-```
-
-**Step 2: Create Automation**
-
-Add to `automations.yaml`:
-```yaml
-- id: gas_meter_bill_entry
-  alias: "Gas Meter - Submit Bill Usage"
-  trigger:
-    - platform: state
-      entity_id: input_button.submit_gas_usage
-  condition:
-    - condition: numeric_state
-      entity_id: input_number.gas_usage
-      above: 0
-  action:
-    - service: gas_meter.enter_bill_usage
-      data:
-        billing_date: "{{ states('input_datetime.gas_billing_date') }}"
-        usage: "{{ states('input_number.gas_usage') | float }}"
-    - service: persistent_notification.create
-      data:
-        title: "Gas Usage Added"
-        message: "Usage of {{ states('input_number.gas_usage') }} CCF added for {{ states('input_datetime.gas_billing_date') }}"
-    - service: input_number.set_value
-      target:
-        entity_id: input_number.gas_usage
-      data:
-        value: 0
-```
-
-**Step 3: Dashboard Card**
-
-```yaml
-type: vertical-stack
-title: Gas Meter
-cards:
-  # Current Status
-  - type: entities
-    entities:
-      - entity: sensor.gas_consumption_data
-        name: Latest Entry
-      - entity: sensor.gas_meter_total
-        name: Cumulative Total
-
-  # Usage Statistics
-  - type: markdown
-    title: Usage Summary
-    content: >
-      {% set records = state_attr('sensor.gas_consumption_data', 'records') %}
-      {% if records and records | length > 0 %}
-        {% set latest = records[-1] %}
-        **Last Period:** {{ latest.usage }}
-
-        **Total Usage:** {{ latest.cumulative_total }}
-
-        **Entries:** {{ records | length }}
-      {% else %}
-        _No usage data yet._
-      {% endif %}
-
-  # Bill Entry Form
-  - type: entities
-    title: Enter Bill Usage
-    entities:
-      - entity: input_datetime.gas_billing_date
-      - entity: input_number.gas_usage
-  - type: button
-    name: Submit Usage
-    entity: input_button.submit_gas_usage
-    tap_action:
-      action: toggle
-    icon: mdi:send
-    icon_height: 40px
-
-  # Usage History
-  - type: markdown
-    title: Usage History
-    content: >
-      {% set records = state_attr('sensor.gas_consumption_data', 'records') %}
-      {% if records %}
-        | Date | Usage | Total |
-        |------|-------|-------|
-        {% for record in records | reverse %}
-        | {{ record.date }} | {{ record.usage }} | {{ record.cumulative_total }} |
-        {% endfor %}
-      {% else %}
-        No usage recorded yet.
-      {% endif %}
-```
-
-#### Option 2: Enhanced Dashboard with HACS Custom Cards
-
-For a more polished look, install these HACS frontend integrations:
-- [Mushroom Cards](https://github.com/piitaya/lovelace-mushroom)
-- [ApexCharts Card](https://github.com/RomRider/apexcharts-card)
-- [Mini Graph Card](https://github.com/kalkih/mini-graph-card)
-
-**Dashboard with Custom Cards:**
-
-```yaml
-type: vertical-stack
-cards:
-  # Header with cumulative total
-  - type: custom:mushroom-template-card
-    primary: Gas Meter
-    secondary: "Total: {{ states('sensor.gas_meter_total') }} {{ state_attr('sensor.gas_meter_total', 'unit_of_measurement') }}"
-    icon: mdi:meter-gas
-    icon_color: orange
-    card_mod:
-      style: |
-        ha-card {
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          --primary-text-color: white;
-          --secondary-text-color: rgba(255,255,255,0.8);
-        }
-
-  # Last period usage display
-  - type: markdown
-    title: Last Period Usage
-    content: >
-      {% set records = state_attr('sensor.gas_consumption_data', 'records') %}
-      {% if records and records | length > 0 %}
-        {% set latest = records[-1] %}
-        {% set usage_val = latest.usage | replace(' CCF', '') | replace(' m³', '') | float %}
-        {% set unit = latest.usage.split(' ')[-1] %}
-        <h1 style="text-align:center; color: {{ 'green' if usage_val < 50 else 'orange' if usage_val < 100 else 'red' }}">{{ latest.usage }}</h1>
-      {% else %}
-        <p style="text-align:center">No data yet</p>
-      {% endif %}
-
-  # Bill entry with mushroom chips
-  - type: horizontal-stack
-    cards:
-      - type: custom:mushroom-entity-card
-        entity: input_datetime.gas_billing_date
-        icon_color: blue
-      - type: custom:mushroom-number-card
-        entity: input_number.gas_usage
-        icon_color: orange
-
-  - type: custom:mushroom-template-card
-    primary: Submit Usage
-    icon: mdi:send-circle
-    icon_color: green
-    tap_action:
-      action: call-service
-      service: input_button.press
-      target:
-        entity_id: input_button.submit_gas_usage
-
-  # Usage trend chart (requires ApexCharts)
-  - type: custom:apexcharts-card
-    header:
-      show: true
-      title: Monthly Usage Trend
-    graph_span: 12month
-    series:
-      - entity: sensor.gas_consumption_data
-        data_generator: |
-          const records = entity.attributes.records || [];
-          return records.map(r => {
-            const usage = parseFloat(r.usage.replace(/[^\d.-]/g, ''));
-            const date = new Date(r.date);
-            return [date.getTime(), usage];
-          });
-        name: Usage
-```
-
-### Boiler Tracking Mode
-
-#### Virtual Gas Meter Data Section
-```yaml
-type: vertical-stack
-title: Virtual Gas Meter
-cards:
-  - type: entities
-    entities:
-      - entity: sensor.consumed_gas
-        name: Current Consumption
-      - entity: sensor.gas_meter_latest_update
-        name: Last Update
-      - entity: sensor.heating_interval
-        name: Heating Time
-  - type: history-graph
-    entities:
-      - entity: sensor.consumed_gas
-    hours_to_show: 168
-    title: Weekly Consumption
-```
-
-#### Enter Meter Reading Section
-
-**Input Helpers** (add to `configuration.yaml`):
-```yaml
-input_datetime:
-  gas_update_datetime:
-    name: Reading Date/Time
-    has_date: true
-    has_time: true
-    icon: mdi:calendar-clock
-
-input_number:
-  consumed_gas:
-    name: Meter Reading
-    min: 0
-    max: 100000
-    step: 0.001
-    mode: box
-    icon: mdi:meter-gas
-
-input_button:
-  trigger_gas_update:
-    name: Submit Reading
-    icon: mdi:send
-```
-
-**Automation** (add to `automations.yaml`):
-```yaml
-- id: gas_meter_correction
-  alias: "Gas Meter - Submit Correction"
-  trigger:
-    - platform: state
-      entity_id: input_button.trigger_gas_update
-  condition:
-    - condition: numeric_state
-      entity_id: input_number.consumed_gas
-      above: 0
-  action:
-    - service: gas_meter.trigger_gas_update
-      data:
-        datetime: "{{ states('input_datetime.gas_update_datetime') }}"
-        consumed_gas: "{{ states('input_number.consumed_gas') | float }}"
-    - service: persistent_notification.create
-      data:
-        title: "Gas Meter Corrected"
-        message: "Reading updated to {{ states('input_number.consumed_gas') }}"
-```
-
-**Dashboard Card:**
-```yaml
-type: vertical-stack
-title: Enter Meter Reading
-cards:
-  - type: entities
-    entities:
-      - entity: input_datetime.gas_update_datetime
-      - entity: input_number.consumed_gas
-  - type: button
-    name: Submit Reading
-    entity: input_button.trigger_gas_update
-    tap_action:
-      action: toggle
-    icon: mdi:send
-```
-
-## Usage
-
-### Bill Entry Mode
-1. Configure the integration with "Monthly Bill Entry" mode
-2. When you receive your utility bill, use **Developer Tools → Services → gas_meter.enter_bill_reading**
-3. Enter the billing date and meter reading
-4. View your consumption history in the Gas Consumption Data sensor
-
-### Boiler Tracking Mode
-1. Configure the integration with "Boiler/Furnace Tracking" mode
-2. Select your boiler switch entity
-3. Monitor real-time estimated consumption via the "Consumed Gas" sensor
-4. Periodically enter real meter readings to improve accuracy
-
-## Upgrading from v1.x
-
-Version 2.0 introduces several changes:
-- **Data Migration**: Existing pickle-based storage is automatically migrated to JSON
-- **New Config Flow**: You may need to reconfigure the integration to access new features
-- **Unit Selection**: Imperial (CCF) units are now supported
-
-## Support & Issues
-
-For any issues or feature requests, please visit the [GitHub Issue Tracker](https://github.com/lukepatrick/virtual_gas_meter/issues).
+For issues or feature requests, please visit the [GitHub Issue Tracker](https://github.com/Migz93/virtual_gas_meter/issues).
 
 ## Credits
 
-This project is a fork of the original [Virtual Gas Meter](https://github.com/Elbereth7/virtual_gas_meter) by [@Elbereth7](https://github.com/Elbereth7).
+This project is a fork of [Virtual Gas Meter](https://github.com/lukepatrick/virtual_gas_meter) by [@lukepatrick](https://github.com/lukepatrick)
+
+Which in turn is a fork of the original [Virtual Gas Meter](https://github.com/Elbereth7/virtual_gas_meter) by [@Elbereth7](https://github.com/Elbereth7).
 
 ## Contributing
 

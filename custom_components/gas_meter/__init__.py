@@ -1,346 +1,396 @@
-"""Virtual Gas Meter integration for Home Assistant."""
+"""Virtual Gas Meter v3 integration."""
+from __future__ import annotations
+
+import asyncio
+from datetime import datetime, timedelta
 import logging
-from homeassistant.core import HomeAssistant, ServiceCall
-from homeassistant.components.recorder.history import get_significant_states
-from homeassistant.components.recorder import get_instance
-from homeassistant.util import dt as dt_util
+from typing import Any
+
+import voluptuous as vol
+
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.helpers import entity_registry as er
-import custom_components.gas_meter.file_handler as fh
+from homeassistant.const import (
+    EVENT_HOMEASSISTANT_STOP,
+    STATE_ON,
+    STATE_UNAVAILABLE,
+    STATE_UNKNOWN,
+)
+from homeassistant.core import HomeAssistant, ServiceCall, callback
+from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.event import async_track_state_change_event, async_track_time_interval
+from homeassistant.helpers.storage import Store
+from homeassistant.helpers.device_registry import DeviceInfo
+
 from .const import (
     DOMAIN,
     CONF_BOILER_ENTITY,
-    CONF_BOILER_AVERAGE,
-    CONF_LATEST_GAS_DATA,
-    CONF_UNIT_SYSTEM,
-    CONF_OPERATING_MODE,
-    DEFAULT_BOILER_AV_H,
-    DEFAULT_BOILER_AV_M,
-    DEFAULT_LATEST_GAS_DATA,
-    DEFAULT_UNIT_SYSTEM,
-    DEFAULT_OPERATING_MODE,
-    MODE_BOILER_TRACKING,
-    MODE_BILL_ENTRY,
+    CONF_UNIT,
+    CONF_INITIAL_METER_READING,
+    CONF_INITIAL_AVERAGE_RATE,
+    STORAGE_VERSION,
+    STORAGE_KEY,
+    SERVICE_REAL_METER_READING_UPDATE,
+    ATTR_METER_READING,
+    ATTR_TIMESTAMP,
+    ATTR_RECALCULATE_AVERAGE_RATE,
+    DEVICE_NAME,
     DEVICE_MANUFACTURER,
     DEVICE_MODEL,
+    UPDATE_INTERVAL,
+    DECIMAL_PLACES,
+    SENSOR_GAS_METER_TOTAL,
+    SENSOR_CONSUMED_GAS,
+    SENSOR_HEATING_INTERVAL,
 )
-from .unit_converter import to_canonical_unit, get_unit_label
-from .datetime_handler import string_to_datetime
 
 _LOGGER = logging.getLogger(__name__)
 
-
-def _get_config_entry_data(hass: HomeAssistant):
-    """Get the config entry data from hass.data."""
-    domain_data = hass.data.get(DOMAIN, {})
-    # Get the first (and should be only) config entry
-    for entry_id, data in domain_data.items():
-        if isinstance(data, dict) and "device_info" in data:
-            return entry_id, data
-    return None, {}
+PLATFORMS = ["sensor"]
 
 
-async def _register_services(hass: HomeAssistant):
-    """Register services for gas meter integration."""
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Set up Virtual Gas Meter from a config entry."""
+    coordinator = VirtualGasMeterCoordinator(hass, entry)
+    await coordinator.async_setup()
     
-    async def handle_trigger_service(call: ServiceCall):
-        """Handle service call to update gas meter data."""
-        try:
-            gas_consume = await fh.load_gas_actualdata(hass)
-            datetime_received = call.data.get("datetime")
-            if datetime_received is None:
-                _LOGGER.error("Missing 'datetime' in service call data.")
-                return
-            _LOGGER.info(f"datetime_received: {datetime_received}")
-            if isinstance(datetime_received, str):
-                try:
-                    gas_new_datetime = string_to_datetime(datetime_received)
-                except Exception as e:
-                    _LOGGER.error(f"Error parsing datetime string: {e}")
-                    return
-            else:
-                gas_new_datetime = datetime_received
-
-            gas_new_data = call.data.get("consumed_gas")
-            if gas_new_data is None:
-                _LOGGER.error("Missing 'consumed_gas' in service call data.")
-                return
-            _LOGGER.info(f"consumed_gas received: {gas_new_data}")
-            if isinstance(gas_new_data, str):
-                try:
-                    gas_new_data = float(gas_new_data)
-                except ValueError:
-                    _LOGGER.error(f"Invalid 'consumed_gas' value: {gas_new_data}")
-                    return
-
-            # Get config entry data
-            entry_id, config_data = _get_config_entry_data(hass)
-            if not entry_id:
-                _LOGGER.error("No config entry found for gas meter.")
-                return
-            
-            # Convert input value to canonical unit (m³) if user is using imperial
-            unit_system = config_data.get("unit_system", DEFAULT_UNIT_SYSTEM)
-            gas_new_data = to_canonical_unit(gas_new_data, unit_system)
-            _LOGGER.debug(f"consumed_gas in canonical units (m³): {gas_new_data}")
-
-            gas_consume.add_record(gas_new_datetime, gas_new_data)
-            _LOGGER.info("Gas meter data updated successfully.")
-
-            if len(gas_consume) > 1:
-                gas_prev_datetime = gas_consume[-2]["datetime"]
-                gas_prev_data = gas_consume[-2]["consumed_gas"]
-
-                # Get the state history of the switch between the two timestamps
-                start_time = dt_util.as_utc(gas_prev_datetime)
-                end_time = dt_util.as_utc(gas_new_datetime)
-                
-                # Get the actual boiler entity ID from hass.data
-                entity_id = config_data.get("boiler_entity")
-                
-                if not entity_id or entity_id in [None, "None", "unknown", "unavailable"]:
-                    _LOGGER.warning("No boiler entity configured. Skipping history calculation.")
-                else:
-                    history_list = await get_instance(hass).async_add_executor_job(
-                        get_significant_states, hass, start_time, end_time, [entity_id]
-                        )
-
-                    # Calculate the total time the switch was "on"
-                    total_on_time = 0
-                    previous_state = None
-                    previous_time = start_time
-                    for state in history_list.get(entity_id, []):
-                        current_time = state.last_changed
-
-                        if previous_state == "on":
-                            total_on_time += (current_time - previous_time).total_seconds()
-
-                        previous_state = state.state
-                        previous_time = current_time
-
-                    # Handle the last segment
-                    if previous_state == "on":
-                        total_on_time += (end_time - previous_time).total_seconds()
-
-                    total_min = total_on_time / 60  # Total time in minutes
-
-                    # Count m3/min for the current interval ("m3/min for interval")
-                    gas_data_diff = gas_new_data - gas_prev_data
-                    if total_min:
-                        gas_consume[-1]["m3/min for interval"] = gas_data_diff / total_min
-                    
-                    # Count how much gas was consumed from the first data till the last data ("consumed_gas_cumulated")
-                    consumed_gas_cumulated = gas_new_data - gas_consume[0]["consumed_gas"]
-                    gas_consume[-1]["consumed_gas_cumulated"] = consumed_gas_cumulated
-
-                    # Count how many minutes the boiler was working starting from the first data till the last data ("min_cumulated")
-                    if len(gas_consume) == 2:
-                        min_cumulated = total_min
-                    elif len(gas_consume) > 2:
-                        min_cumulated = total_min + gas_consume[-2].get("min_cumulated", 0)
-                    gas_consume[-1]["min_cumulated"] = min_cumulated
-
-                    # Count m3/min for the whole period between the first data till the last data ("average m3/min")
-                    if min_cumulated:
-                        av_min = consumed_gas_cumulated / min_cumulated
-                        gas_consume[-1]["average m3/min"] = av_min
-
-                        hass.data[DOMAIN][entry_id]["average_m3_per_min"] = av_min
-                    
-            hass.data[DOMAIN][entry_id]["latest_gas_update"] = gas_new_datetime
-            hass.data[DOMAIN][entry_id]["latest_gas_data"] = gas_new_data
-
-            # Save updated gas consumption
-            await fh.save_gas_actualdata(gas_consume, hass)
-
-        except Exception as e:
-            _LOGGER.error("Error in handle_trigger_service: %s", str(e))
-            raise
-            
-    async def read_gas_actualdata_file(call: ServiceCall):
-        """Read and log gas meter data."""
-        try:
-            gas_consume = await fh.load_gas_actualdata(hass)
-            for record in gas_consume:
-                _LOGGER.info("Gas record: %s", record)
-            # Get the GasDataSensor entity object
-            entity_registry = er.async_get(hass)
-            gas_data_sensor_entity_id = entity_registry.async_get_entity_id("sensor", DOMAIN, "vgm_gas_consumption_data")
-
-            if gas_data_sensor_entity_id:
-                gas_data_sensor_entity = hass.states.get(gas_data_sensor_entity_id)
-                if gas_data_sensor_entity:
-                    # Trigger the sensor's async_update()
-                    entity = hass.data["entity_components"]["sensor"].get_entity(gas_data_sensor_entity_id)
-                    _LOGGER.info(f"Entity component for GasDataSensor: {entity}")
-                    if entity:
-                        await entity.async_update()
-                        _LOGGER.info("GasDataSensor updated successfully.")
-                    else:
-                        _LOGGER.warning(f"Could not get entity from entity component for {gas_data_sensor_entity_id}")
-                else:
-                    _LOGGER.warning(f"Could not get state for {gas_data_sensor_entity_id}")
-            else:
-                _LOGGER.warning("GasDataSensor entity not found in registry.")
-        except Exception as e:
-            _LOGGER.error("Error in read_gas_actualdata_file: %s", str(e))
-            raise
-            
-    async def handle_bill_entry(call: ServiceCall):
-        """Handle service call to enter period gas usage from a utility bill."""
-        try:
-            gas_consume = await fh.load_gas_actualdata(hass)
-
-            # Parse billing period end date
-            billing_date = call.data.get("billing_date")
-            if billing_date is None:
-                _LOGGER.error("Missing 'billing_date' in service call data.")
-                return
-
-            _LOGGER.info(f"billing_date received: {billing_date}")
-            if isinstance(billing_date, str):
-                try:
-                    gas_datetime = string_to_datetime(billing_date)
-                except Exception as e:
-                    _LOGGER.error(f"Error parsing billing_date string: {e}")
-                    return
-            else:
-                gas_datetime = billing_date
-
-            # Parse period usage (actual usage from bill, not meter reading)
-            usage = call.data.get("usage")
-            if usage is None:
-                _LOGGER.error("Missing 'usage' in service call data.")
-                return
-
-            _LOGGER.info(f"usage received: {usage}")
-            if isinstance(usage, str):
-                try:
-                    usage = float(usage)
-                except ValueError:
-                    _LOGGER.error(f"Invalid 'usage' value: {usage}")
-                    return
-
-            # Get config entry data
-            entry_id, config_data = _get_config_entry_data(hass)
-            if not entry_id:
-                _LOGGER.error("No config entry found for gas meter.")
-                return
-
-            # Convert input value to canonical unit (m³) if user is using imperial
-            unit_system = config_data.get("unit_system", DEFAULT_UNIT_SYSTEM)
-            usage_canonical = to_canonical_unit(usage, unit_system)
-            _LOGGER.debug(f"usage in canonical units (m³): {usage_canonical}")
-
-            # Calculate cumulative total (sum of all usage entries)
-            previous_cumulative = 0
-            if len(gas_consume) > 0:
-                previous_cumulative = gas_consume[-1].get("consumed_gas_cumulated", gas_consume[-1]["consumed_gas"])
-
-            new_cumulative = previous_cumulative + usage_canonical
-
-            # Add record with period usage and cumulative total
-            gas_consume.add_record(gas_datetime, usage_canonical)
-            gas_consume[-1]["consumed_gas_cumulated"] = new_cumulative
-
-            # Update hass.data - latest_gas_data is cumulative for Energy Dashboard
-            hass.data[DOMAIN][entry_id]["latest_gas_update"] = gas_datetime
-            hass.data[DOMAIN][entry_id]["latest_gas_data"] = new_cumulative
-
-            # Save updated gas consumption
-            await fh.save_gas_actualdata(gas_consume, hass)
-            _LOGGER.info(f"Bill usage added: {usage} for period ending {gas_datetime}. Cumulative total: {new_cumulative}")
-
-        except Exception as e:
-            _LOGGER.error("Error in handle_bill_entry: %s", str(e))
-            raise
-
-    # Register the services
-    hass.services.async_register(
-        DOMAIN, "trigger_gas_update", handle_trigger_service
-    )
-    hass.services.async_register(
-        DOMAIN, "enter_bill_usage", handle_bill_entry
-    )
-    hass.services.async_register(
-        DOMAIN, "read_gas_actualdata_file", read_gas_actualdata_file
-    )
-
-async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry):
-    """Set up the integration from a config entry (UI setup)."""
-    await _register_services(hass)
-
-    # Retrieve user input values
-    unit_system = config_entry.data.get(CONF_UNIT_SYSTEM, DEFAULT_UNIT_SYSTEM)
-    operating_mode = config_entry.data.get(CONF_OPERATING_MODE, DEFAULT_OPERATING_MODE)
-    latest_gas_data = config_entry.data.get(CONF_LATEST_GAS_DATA, DEFAULT_LATEST_GAS_DATA)
-    now = dt_util.now()
-
-    # Store config in hass.data for access by sensors
     hass.data.setdefault(DOMAIN, {})
+    hass.data[DOMAIN][entry.entry_id] = coordinator
     
-    # Mode-specific setup
-    if operating_mode == MODE_BOILER_TRACKING:
-        boiler_entity = config_entry.data.get(CONF_BOILER_ENTITY)
-        boiler_average = config_entry.data.get(CONF_BOILER_AVERAGE, DEFAULT_BOILER_AV_H)
-        boiler_av_min = boiler_average / 60
-    else:
-        boiler_entity = None
-        boiler_av_min = 0
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     
-    hass.data[DOMAIN][config_entry.entry_id] = {
-        CONF_UNIT_SYSTEM: unit_system,
-        CONF_OPERATING_MODE: operating_mode,
-        "device_info": {
-            "identifiers": {(DOMAIN, config_entry.entry_id)},
-            "name": "Virtual Gas Meter",
-            "manufacturer": DEVICE_MANUFACTURER,
-            "model": DEVICE_MODEL,
-            "sw_version": "2.0.0",
-        },
-        # Internal state data
-        "unit_system": unit_system,
-        "operating_mode": operating_mode,
-        "latest_gas_data": latest_gas_data,
-        "latest_gas_update": now,
-        "boiler_entity": boiler_entity,
-        "average_m3_per_min": boiler_av_min,
-    }
-
-    if operating_mode == MODE_BOILER_TRACKING:
-        _LOGGER.info(f"Virtual Gas Meter configured in Boiler Tracking mode with {unit_system} units")
-    else:
-        _LOGGER.info(f"Virtual Gas Meter configured in Bill Entry mode with {unit_system} units")
-
-    # Add the first record to the file if latest_gas_data is not 0
-    if latest_gas_data != 0:
-        # Convert initial value to canonical unit (m³) before storing
-        initial_gas_canonical = to_canonical_unit(latest_gas_data, unit_system)
-        _LOGGER.debug(f"Initial gas data: {latest_gas_data} ({unit_system}) -> {initial_gas_canonical} m³")
-
-        # Add directly to storage instead of calling service to avoid conversion happening twice
-        gas_consume = await fh.load_gas_actualdata(hass)
-        gas_consume.add_record(now, initial_gas_canonical)
-        await fh.save_gas_actualdata(gas_consume, hass)
-
-        # Update hass.data with canonical value
-        hass.data[DOMAIN][config_entry.entry_id]["latest_gas_data"] = initial_gas_canonical
-        _LOGGER.info("Added initial gas record to storage.")
-
-    await hass.config_entries.async_forward_entry_setups(config_entry, ["sensor"])
+    # Register service
+    async def handle_real_meter_reading_update(call: ServiceCall) -> None:
+        """Handle real meter reading update service."""
+        await coordinator.handle_real_meter_reading_update(call)
+    
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_REAL_METER_READING_UPDATE,
+        handle_real_meter_reading_update,
+        schema=vol.Schema(
+            {
+                vol.Required(ATTR_METER_READING): cv.positive_float,
+                vol.Optional(ATTR_TIMESTAMP): cv.datetime,
+                vol.Optional(ATTR_RECALCULATE_AVERAGE_RATE, default=True): cv.boolean,
+            }
+        ),
+    )
+    
+    _LOGGER.info("Virtual Gas Meter v3 integration loaded")
+    
     return True
 
 
-async def async_unload_entry(hass: HomeAssistant, config_entry: ConfigEntry):
-    """Unload the integration."""
-    # Unregister services
-    hass.services.async_remove(DOMAIN, "trigger_gas_update")
-    hass.services.async_remove(DOMAIN, "enter_bill_usage")
-    hass.services.async_remove(DOMAIN, "read_gas_actualdata_file")
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Unload a config entry."""
+    coordinator = hass.data[DOMAIN][entry.entry_id]
+    await coordinator.async_unload()
     
-    # Clean up hass.data
-    if DOMAIN in hass.data and config_entry.entry_id in hass.data[DOMAIN]:
-        hass.data[DOMAIN].pop(config_entry.entry_id)
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    
+    if unload_ok:
+        hass.data[DOMAIN].pop(entry.entry_id)
+        
+        # Remove service if no more instances
+        if not hass.data[DOMAIN]:
+            hass.services.async_remove(DOMAIN, SERVICE_REAL_METER_READING_UPDATE)
+    
+    return unload_ok
 
-    await hass.config_entries.async_forward_entry_unload(config_entry, "sensor")
-    return True
+
+class VirtualGasMeterCoordinator:
+    """Coordinator for Virtual Gas Meter."""
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+        """Initialize the coordinator."""
+        self.hass = hass
+        self.entry = entry
+        self._store = Store(hass, STORAGE_VERSION, f"{STORAGE_KEY}_{entry.entry_id}")
+        
+        # Config data
+        self._boiler_entity_id = entry.data[CONF_BOILER_ENTITY]
+        self._unit = entry.data[CONF_UNIT]
+        self._initial_meter_reading = entry.data[CONF_INITIAL_METER_READING]
+        self._initial_average_rate = entry.data[CONF_INITIAL_AVERAGE_RATE]
+        
+        # Runtime state
+        self._last_real_meter_reading: float = self._initial_meter_reading
+        self._last_real_meter_timestamp: datetime = datetime.now()
+        self._average_rate_per_h: float = self._initial_average_rate
+        self._consumed_gas: float = 0.0
+        self._heating_interval_minutes: int = 0
+        self._boiler_last_state: str | None = None
+        self._boiler_state_change_time: datetime | None = None
+        
+        # Sensor references
+        self._sensors: dict[str, Any] = {}
+        
+        # Listeners
+        self._unsub_boiler_listener = None
+        self._unsub_interval_listener = None
+        
+        # Device info
+        self.device_info = DeviceInfo(
+            identifiers={(DOMAIN, entry.entry_id)},
+            name=DEVICE_NAME,
+            manufacturer=DEVICE_MANUFACTURER,
+            model=DEVICE_MODEL,
+        )
+
+    async def async_setup(self) -> None:
+        """Set up the coordinator."""
+        # Load persisted data
+        await self._load_data()
+        
+        # Start boiler state listener
+        self._unsub_boiler_listener = async_track_state_change_event(
+            self.hass,
+            [self._boiler_entity_id],
+            self._handle_boiler_state_change,
+        )
+        
+        # Start interval update (60 seconds)
+        self._unsub_interval_listener = async_track_time_interval(
+            self.hass,
+            self._handle_interval_update,
+            timedelta(seconds=UPDATE_INTERVAL),
+        )
+        
+        # Initialize boiler state
+        state = self.hass.states.get(self._boiler_entity_id)
+        if state:
+            self._boiler_last_state = self._get_boiler_state(state.state)
+            self._boiler_state_change_time = datetime.now()
+
+    async def async_unload(self) -> None:
+        """Unload the coordinator."""
+        if self._unsub_boiler_listener:
+            self._unsub_boiler_listener()
+        if self._unsub_interval_listener:
+            self._unsub_interval_listener()
+        
+        await self._save_data()
+
+    def register_sensor(self, sensor_type: str, sensor: Any) -> None:
+        """Register a sensor."""
+        self._sensors[sensor_type] = sensor
+
+    def get_boiler_entity_id(self) -> str:
+        """Get boiler entity ID."""
+        return self._boiler_entity_id
+
+    def get_gas_meter_total(self) -> float:
+        """Get gas meter total."""
+        total = self._last_real_meter_reading + self._consumed_gas
+        return round(total, DECIMAL_PLACES)
+
+    def get_consumed_gas(self) -> float:
+        """Get consumed gas."""
+        return round(self._consumed_gas, DECIMAL_PLACES)
+
+    def get_last_real_meter_reading(self) -> float:
+        """Get last real meter reading."""
+        return round(self._last_real_meter_reading, DECIMAL_PLACES)
+
+    def get_last_real_meter_timestamp(self) -> str:
+        """Get last real meter timestamp."""
+        return self._last_real_meter_timestamp.isoformat()
+
+    def get_average_rate_per_h(self) -> float:
+        """Get average rate per hour."""
+        return round(self._average_rate_per_h, DECIMAL_PLACES)
+
+    def get_heating_interval_string(self) -> str:
+        """Get heating interval as string."""
+        hours = self._heating_interval_minutes // 60
+        minutes = self._heating_interval_minutes % 60
+        return f"{hours}h {minutes}m"
+
+    def _get_boiler_state(self, state_str: str) -> str:
+        """Determine if boiler is on or off."""
+        if state_str in [STATE_UNAVAILABLE, STATE_UNKNOWN]:
+            return "off"
+        
+        # Handle different entity types
+        entity_domain = self._boiler_entity_id.split(".")[0]
+        
+        if entity_domain == "climate":
+            # For climate entities, check if hvac_action is heating
+            state_obj = self.hass.states.get(self._boiler_entity_id)
+            if state_obj and state_obj.attributes.get("hvac_action") == "heating":
+                return "on"
+            return "off"
+        elif entity_domain in ["switch", "binary_sensor"]:
+            return "on" if state_str == STATE_ON else "off"
+        elif entity_domain == "sensor":
+            # For sensor, treat numeric > 0 or "on" as on
+            try:
+                return "on" if float(state_str) > 0 else "off"
+            except (ValueError, TypeError):
+                return "on" if state_str.lower() == "on" else "off"
+        
+        return "off"
+
+    @callback
+    def _handle_boiler_state_change(self, event) -> None:
+        """Handle boiler state changes."""
+        new_state = event.data.get("new_state")
+        if not new_state:
+            return
+        
+        current_boiler_state = self._get_boiler_state(new_state.state)
+        
+        _LOGGER.debug(
+            "Boiler state change: %s -> %s",
+            self._boiler_last_state,
+            current_boiler_state,
+        )
+        
+        # If turning off, perform final tick
+        if self._boiler_last_state == "on" and current_boiler_state == "off":
+            self._perform_tick()
+        
+        self._boiler_last_state = current_boiler_state
+        self._boiler_state_change_time = datetime.now()
+
+    @callback
+    def _handle_interval_update(self, now: datetime) -> None:
+        """Handle interval updates (every 60 seconds)."""
+        if self._boiler_last_state == "on":
+            self._perform_tick()
+
+    def _perform_tick(self) -> None:
+        """Perform a runtime tick."""
+        # Increment runtime by 1 minute
+        self._heating_interval_minutes += 1
+        
+        # Calculate consumption increment
+        consumed_increment = self._average_rate_per_h / 60.0
+        self._consumed_gas += consumed_increment
+        
+        _LOGGER.debug(
+            "Runtime tick: interval=%s, consumed_increment=%.3f, total_consumed=%.3f, meter_total=%.3f",
+            self.get_heating_interval_string(),
+            consumed_increment,
+            self._consumed_gas,
+            self.get_gas_meter_total(),
+        )
+        
+        # Update sensors
+        self._update_sensors()
+        
+        # Save state
+        self.hass.async_create_task(self._save_data())
+
+    def _update_sensors(self) -> None:
+        """Update all sensors."""
+        for sensor in self._sensors.values():
+            sensor.async_schedule_update_ha_state(force_refresh=True)
+
+    async def handle_real_meter_reading_update(self, call: ServiceCall) -> None:
+        """Handle real meter reading update service call."""
+        meter_reading = call.data[ATTR_METER_READING]
+        timestamp = call.data.get(ATTR_TIMESTAMP, datetime.now())
+        recalculate = call.data.get(ATTR_RECALCULATE_AVERAGE_RATE, True)
+        
+        # Validation: meter_reading must be >= last_real
+        if meter_reading < self._last_real_meter_reading:
+            _LOGGER.error(
+                "Real meter reading update failed: New reading (%.3f) is less than previous reading (%.3f)",
+                meter_reading,
+                self._last_real_meter_reading,
+            )
+            return
+        
+        old_reading = self._last_real_meter_reading
+        runtime_minutes = self._heating_interval_minutes
+        runtime_hours = runtime_minutes / 60.0
+        
+        # If runtime is zero, just snap the values
+        if runtime_minutes == 0:
+            self._last_real_meter_reading = meter_reading
+            self._last_real_meter_timestamp = timestamp
+            self._consumed_gas = 0.0
+            self._heating_interval_minutes = 0
+            
+            _LOGGER.info(
+                "Real meter reading update (runtime=0): reading=%.3f -> %.3f",
+                old_reading,
+                meter_reading,
+            )
+        else:
+            # Recalculate average rate if enabled
+            if recalculate:
+                actual_used = meter_reading - self._last_real_meter_reading
+                new_average_rate = actual_used / runtime_hours
+                
+                _LOGGER.info(
+                    "Real meter reading update: reading=%.3f -> %.3f, runtime=%dm (%.2fh), actual_used=%.3f, new_rate=%.3f %s/h",
+                    old_reading,
+                    meter_reading,
+                    runtime_minutes,
+                    runtime_hours,
+                    actual_used,
+                    new_average_rate,
+                    self._unit,
+                )
+                
+                self._average_rate_per_h = new_average_rate
+            else:
+                _LOGGER.info(
+                    "Real meter reading update (no recalc): reading=%.3f -> %.3f, runtime=%dm",
+                    old_reading,
+                    meter_reading,
+                    runtime_minutes,
+                )
+            
+            # Apply result
+            self._last_real_meter_reading = meter_reading
+            self._last_real_meter_timestamp = timestamp
+            self._consumed_gas = 0.0
+            self._heating_interval_minutes = 0
+        
+        # Update sensors
+        self._update_sensors()
+        
+        # Save state
+        await self._save_data()
+
+    async def _load_data(self) -> None:
+        """Load persisted data."""
+        data = await self._store.async_load()
+        
+        if data:
+            self._last_real_meter_reading = data.get(
+                "last_real_meter_reading", self._initial_meter_reading
+            )
+            self._last_real_meter_timestamp = datetime.fromisoformat(
+                data.get("last_real_meter_timestamp", datetime.now().isoformat())
+            )
+            self._average_rate_per_h = data.get(
+                "average_rate_per_h", self._initial_average_rate
+            )
+            self._consumed_gas = data.get("consumed_gas", 0.0)
+            self._heating_interval_minutes = data.get("heating_interval_minutes", 0)
+            
+            _LOGGER.debug(
+                "Loaded persisted data: last_reading=%.3f, consumed=%.3f, interval=%dm, rate=%.3f",
+                self._last_real_meter_reading,
+                self._consumed_gas,
+                self._heating_interval_minutes,
+                self._average_rate_per_h,
+            )
+
+    async def _save_data(self) -> None:
+        """Save data to storage."""
+        data = {
+            "last_real_meter_reading": self._last_real_meter_reading,
+            "last_real_meter_timestamp": self._last_real_meter_timestamp.isoformat(),
+            "average_rate_per_h": self._average_rate_per_h,
+            "consumed_gas": self._consumed_gas,
+            "heating_interval_minutes": self._heating_interval_minutes,
+            "unit": self._unit,
+            "boiler_entity_id": self._boiler_entity_id,
+        }
+        
+        await self._store.async_save(data)

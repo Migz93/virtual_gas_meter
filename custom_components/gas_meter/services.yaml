@@ -1,40 +1,30 @@
-trigger_gas_update:
-  description: "Update the virtual gas meter with a real meter reading."
+real_meter_reading_update:
+  name: Real Meter Reading Update
+  description: Update the virtual gas meter with a real meter reading to improve accuracy and recalculate the average consumption rate.
   fields:
-    datetime:
-      description: "The timestamp for the gas meter reading (format: YYYY-MM-DD HH:MM)."
-      example: "2025-02-12 15:51"
+    meter_reading:
+      name: Meter Reading
+      description: The new real meter reading from your physical gas meter (in your configured unit).
       required: true
-      selector:
-        text:
-    consumed_gas:
-      description: "The gas meter reading value in your configured unit (m³ for metric, CCF for imperial)."
       example: 4447.816
-      required: true
       selector:
         number:
           min: 0
-          mode: box
+          max: 999999
           step: 0.001
-
-enter_bill_usage:
-  description: "Enter your gas usage from a utility bill (the 'Actual Usage' amount for the billing period)."
-  fields:
-    billing_date:
-      description: "The billing period end date (format: YYYY-MM-DD or MM/DD/YYYY)."
-      example: "2025-11-03"
-      required: true
-      selector:
-        date:
-    usage:
-      description: "The actual gas usage for this billing period in your configured unit (m³ for metric, CCF for imperial)."
-      example: 24.95
-      required: true
-      selector:
-        number:
-          min: 0
           mode: box
-          step: 0.01
-
-read_gas_actualdata_file:
-  description: "Read and refresh the stored gas meter data file."
+    timestamp:
+      name: Timestamp
+      description: Optional timestamp for the reading. If omitted, uses current time.
+      required: false
+      example: "2025-02-12 15:51:00"
+      selector:
+        datetime:
+    recalculate_average_rate:
+      name: Recalculate Average Rate
+      description: If true, recalculates the average hourly consumption rate based on actual usage. If false, only snaps the meter total without updating the rate.
+      required: false
+      default: true
+      example: true
+      selector:
+        boolean:
