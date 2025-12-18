@@ -69,7 +69,7 @@ class VGMGasMeterTotalSensor(RestoreEntity, SensorEntity):
         if unit == UNIT_M3:
             self._attr_native_unit_of_measurement = UnitOfVolume.CUBIC_METERS
         else:  # CCF
-            self._attr_native_unit_of_measurement = UNIT_CCF
+            self._attr_native_unit_of_measurement = UnitOfVolume.CENTUM_CUBIC_FEET
 
     @property
     def device_info(self):
@@ -118,7 +118,7 @@ class VGMConsumedGasSensor(RestoreEntity, SensorEntity):
         if unit == UNIT_M3:
             self._attr_native_unit_of_measurement = UnitOfVolume.CUBIC_METERS
         else:  # CCF
-            self._attr_native_unit_of_measurement = UNIT_CCF
+            self._attr_native_unit_of_measurement = UnitOfVolume.CENTUM_CUBIC_FEET
 
     @property
     def device_info(self):

@@ -19,29 +19,12 @@
       }
     },
     "error": {
-      "invalid_domain": "Selected entity must be a switch, climate, binary_sensor, or sensor"
+      "invalid_domain": "Selected entity must be a switch, climate, binary_sensor, or sensor",
+      "entity_not_found": "Selected entity does not exist in Home Assistant",
+      "must_be_positive": "Initial average hourly consumption must be greater than 0"
     },
     "abort": {
       "single_instance_allowed": "Virtual Gas Meter only supports one instance. Remove the existing one to reconfigure."
-    }
-  },
-  "options": {
-    "step": {
-      "init": {
-        "title": "Virtual Gas Meter Options",
-        "description": "Update your virtual gas meter settings. Current unit: {current_unit} (cannot be changed)",
-        "data": {
-          "boiler_entity_id": "Boiler Entity",
-          "initial_average_rate": "Average Hourly Consumption"
-        },
-        "data_description": {
-          "boiler_entity_id": "Select the entity that represents your boiler",
-          "initial_average_rate": "Update the average gas consumption per hour when the boiler is running"
-        }
-      }
-    },
-    "error": {
-      "invalid_domain": "Selected entity must be a switch, climate, binary_sensor, or sensor"
     }
   },
   "services": {

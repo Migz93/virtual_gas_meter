@@ -43,3 +43,6 @@ UPDATE_INTERVAL = 60
 
 # Decimal places
 DECIMAL_PLACES = 3
+
+# Time constants
+MINUTES_PER_HOUR = 60

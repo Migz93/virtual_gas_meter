@@ -7,8 +7,7 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant import config_entries
-from homeassistant.const import CONF_ENTITY_ID
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers import selector
 import homeassistant.helpers.config_validation as cv
 
@@ -54,6 +53,10 @@ class VirtualGasMeterConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             
             if domain not in ALLOWED_BOILER_DOMAINS:
                 errors[CONF_BOILER_ENTITY] = "invalid_domain"
+            elif not self.hass.states.get(boiler_entity):
+                errors[CONF_BOILER_ENTITY] = "entity_not_found"
+            elif user_input[CONF_INITIAL_AVERAGE_RATE] <= 0:
+                errors[CONF_INITIAL_AVERAGE_RATE] = "must_be_positive"
             else:
                 # Create the config entry
                 return self.async_create_entry(
@@ -89,67 +92,5 @@ class VirtualGasMeterConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors=errors,
             description_placeholders={
                 "unit_note": "Unit selection cannot be changed after setup."
-            },
-        )
-
-    @staticmethod
-    @callback
-    def async_get_options_flow(
-        config_entry: config_entries.ConfigEntry,
-    ) -> VirtualGasMeterOptionsFlow:
-        """Get the options flow for this handler."""
-        return VirtualGasMeterOptionsFlow(config_entry)
-
-
-class VirtualGasMeterOptionsFlow(config_entries.OptionsFlow):
-    """Handle options flow for Virtual Gas Meter."""
-
-    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        """Initialize options flow."""
-        self.config_entry = config_entry
-
-    async def async_step_init(
-        self, user_input: dict[str, Any] | None = None
-    ) -> config_entries.FlowResult:
-        """Manage the options."""
-        errors = {}
-
-        if user_input is not None:
-            # Validate boiler entity
-            boiler_entity = user_input[CONF_BOILER_ENTITY]
-            domain = boiler_entity.split(".")[0] if "." in boiler_entity else ""
-            
-            if domain not in ALLOWED_BOILER_DOMAINS:
-                errors[CONF_BOILER_ENTITY] = "invalid_domain"
-            else:
-                # Update config entry data
-                self.hass.config_entries.async_update_entry(
-                    self.config_entry,
-                    data={**self.config_entry.data, **user_input},
-                )
-                return self.async_create_entry(title="", data={})
-
-        # Get current values
-        current_boiler = self.config_entry.data.get(CONF_BOILER_ENTITY)
-        current_rate = self.config_entry.data.get(CONF_INITIAL_AVERAGE_RATE, 0.0)
-        current_unit = self.config_entry.data.get(CONF_UNIT, UNIT_M3)
-
-        data_schema = vol.Schema(
-            {
-                vol.Required(CONF_BOILER_ENTITY, default=current_boiler): selector.EntitySelector(
-                    selector.EntitySelectorConfig(
-                        domain=ALLOWED_BOILER_DOMAINS,
-                    )
-                ),
-                vol.Required(CONF_INITIAL_AVERAGE_RATE, default=current_rate): cv.positive_float,
-            }
-        )
-
-        return self.async_show_form(
-            step_id="init",
-            data_schema=data_schema,
-            errors=errors,
-            description_placeholders={
-                "current_unit": f"Current unit: {current_unit} (cannot be changed)",
             },
         )
