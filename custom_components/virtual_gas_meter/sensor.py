@@ -87,7 +87,7 @@ class VGMGasMeterTotalSensor(RestoreEntity, SensorEntity):
         return {
             "last_real_meter_reading": self._coordinator.get_last_real_meter_reading(),
             "last_real_meter_timestamp": self._coordinator.get_last_real_meter_timestamp(),
-            "average_rate_per_h": round(self._coordinator._average_rate_per_h, DECIMAL_PLACES),
+            "average_rate_per_h": f"{self._coordinator._average_rate_per_h:.{DECIMAL_PLACES}f}",
             "boiler_entity_id": self._coordinator.get_boiler_entity_id(),
             "unit": self._unit,
         }

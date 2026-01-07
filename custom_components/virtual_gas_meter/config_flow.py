@@ -101,15 +101,11 @@ class VirtualGasMeterConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         config_entry: config_entries.ConfigEntry,
     ) -> config_entries.OptionsFlow:
         """Create the options flow."""
-        return OptionsFlowHandler(config_entry)
+        return OptionsFlowHandler()
 
 
 class OptionsFlowHandler(config_entries.OptionsFlow):
     """Handle options flow for Virtual Gas Meter."""
-
-    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        """Initialize options flow."""
-        self._config_entry = config_entry
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
@@ -132,32 +128,32 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             else:
                 # Update the config entry data with the new boiler entity
                 # Preserve all other settings (unit, initial readings, etc.)
-                new_data = {**self._config_entry.data}
+                new_data = {**self.config_entry.data}
                 new_data[CONF_BOILER_ENTITY] = boiler_entity
                 
                 self.hass.config_entries.async_update_entry(
-                    self._config_entry,
+                    self.config_entry,
                     data=new_data,
                 )
                 
                 # Update the average rate in the coordinator's storage if changed
                 if average_rate is not None:
-                    coordinator = self.hass.data[DOMAIN][self._config_entry.entry_id]
+                    coordinator = self.hass.data[DOMAIN][self.config_entry.entry_id]
                     coordinator._average_rate_per_h = average_rate
                     await coordinator._save_data()
                     _LOGGER.info("Updated average rate per hour to %.3f", average_rate)
                 
                 # Reload the integration to apply changes
-                await self.hass.config_entries.async_reload(self._config_entry.entry_id)
+                await self.hass.config_entries.async_reload(self.config_entry.entry_id)
                 
                 return self.async_create_entry(title="", data={})
 
         # Get current boiler entity from config
-        current_boiler = self._config_entry.data.get(CONF_BOILER_ENTITY)
-        current_unit = self._config_entry.data.get(CONF_UNIT)
+        current_boiler = self.config_entry.data.get(CONF_BOILER_ENTITY)
+        current_unit = self.config_entry.data.get(CONF_UNIT)
         
         # Get current average rate from coordinator
-        coordinator = self.hass.data[DOMAIN][self._config_entry.entry_id]
+        coordinator = self.hass.data[DOMAIN][self.config_entry.entry_id]
         current_average_rate = coordinator.get_average_rate_per_h()
         
         # Build the schema with current values
