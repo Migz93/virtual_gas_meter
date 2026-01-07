@@ -94,3 +94,89 @@ class VirtualGasMeterConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 "unit_note": "Unit selection cannot be changed after setup."
             },
         )
+
+    @staticmethod
+    def async_get_options_flow(
+        config_entry: config_entries.ConfigEntry,
+    ) -> config_entries.OptionsFlow:
+        """Create the options flow."""
+        return OptionsFlowHandler(config_entry)
+
+
+class OptionsFlowHandler(config_entries.OptionsFlow):
+    """Handle options flow for Virtual Gas Meter."""
+
+    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
+        """Initialize options flow."""
+        self._config_entry = config_entry
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.FlowResult:
+        """Manage the options."""
+        errors = {}
+
+        if user_input is not None:
+            # Validate boiler entity exists and is in allowed domains
+            boiler_entity = user_input[CONF_BOILER_ENTITY]
+            domain = boiler_entity.split(".")[0] if "." in boiler_entity else ""
+            average_rate = user_input.get(CONF_INITIAL_AVERAGE_RATE)
+            
+            if domain not in ALLOWED_BOILER_DOMAINS:
+                errors[CONF_BOILER_ENTITY] = "invalid_domain"
+            elif not self.hass.states.get(boiler_entity):
+                errors[CONF_BOILER_ENTITY] = "entity_not_found"
+            elif average_rate is not None and average_rate <= 0:
+                errors[CONF_INITIAL_AVERAGE_RATE] = "must_be_positive"
+            else:
+                # Update the config entry data with the new boiler entity
+                # Preserve all other settings (unit, initial readings, etc.)
+                new_data = {**self._config_entry.data}
+                new_data[CONF_BOILER_ENTITY] = boiler_entity
+                
+                self.hass.config_entries.async_update_entry(
+                    self._config_entry,
+                    data=new_data,
+                )
+                
+                # Update the average rate in the coordinator's storage if changed
+                if average_rate is not None:
+                    coordinator = self.hass.data[DOMAIN][self._config_entry.entry_id]
+                    coordinator._average_rate_per_h = average_rate
+                    await coordinator._save_data()
+                    _LOGGER.info("Updated average rate per hour to %.3f", average_rate)
+                
+                # Reload the integration to apply changes
+                await self.hass.config_entries.async_reload(self._config_entry.entry_id)
+                
+                return self.async_create_entry(title="", data={})
+
+        # Get current boiler entity from config
+        current_boiler = self._config_entry.data.get(CONF_BOILER_ENTITY)
+        current_unit = self._config_entry.data.get(CONF_UNIT)
+        
+        # Get current average rate from coordinator
+        coordinator = self.hass.data[DOMAIN][self._config_entry.entry_id]
+        current_average_rate = coordinator.get_average_rate_per_h()
+        
+        # Build the schema with current values
+        data_schema = vol.Schema(
+            {
+                vol.Required(CONF_BOILER_ENTITY, default=current_boiler): selector.EntitySelector(
+                    selector.EntitySelectorConfig(
+                        domain=ALLOWED_BOILER_DOMAINS,
+                    )
+                ),
+                vol.Required(CONF_INITIAL_AVERAGE_RATE, default=current_average_rate): cv.positive_float,
+            }
+        )
+
+        return self.async_show_form(
+            step_id="init",
+            data_schema=data_schema,
+            errors=errors,
+            description_placeholders={
+                "current_unit": current_unit,
+                "info": "You can change the boiler entity and average hourly consumption rate. Unit and initial meter reading cannot be modified."
+            },
+        )
