@@ -20,6 +20,7 @@ from .const import (
     CONF_UNIT,
     CONF_INITIAL_METER_READING,
     CONF_INITIAL_AVERAGE_RATE,
+    CONF_AVERAGE_RATE,
     ALLOWED_BOILER_DOMAINS,
 )
 
@@ -120,14 +121,14 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             # Validate boiler entity exists and is in allowed domains
             boiler_entity = user_input[CONF_BOILER_ENTITY]
             domain = boiler_entity.split(".")[0] if "." in boiler_entity else ""
-            average_rate = user_input.get(CONF_INITIAL_AVERAGE_RATE)
+            average_rate = user_input.get(CONF_AVERAGE_RATE)
             
             if domain not in ALLOWED_BOILER_DOMAINS:
                 errors[CONF_BOILER_ENTITY] = "invalid_domain"
             elif not self.hass.states.get(boiler_entity):
                 errors[CONF_BOILER_ENTITY] = "entity_not_found"
             elif average_rate is not None and average_rate <= 0:
-                errors[CONF_INITIAL_AVERAGE_RATE] = "must_be_positive"
+                errors[CONF_AVERAGE_RATE] = "must_be_positive"
             else:
                 # Update the config entry data with the new boiler entity
                 # Preserve all other settings (unit, initial readings, etc.)
@@ -167,7 +168,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                         domain=ALLOWED_BOILER_DOMAINS,
                     )
                 ),
-                vol.Required(CONF_INITIAL_AVERAGE_RATE, default=current_average_rate): cv.positive_float,
+                vol.Required(CONF_AVERAGE_RATE, default=current_average_rate): cv.positive_float,
             }
         )
 

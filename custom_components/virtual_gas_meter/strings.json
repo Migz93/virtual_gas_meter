@@ -34,11 +34,11 @@
         "description": "Update the boiler entity being tracked and average consumption rate. Current unit: {current_unit}.\n\n{info}",
         "data": {
           "boiler_entity_id": "Boiler Entity",
-          "initial_average_rate": "Average Hourly Consumption"
+          "average_rate_per_h": "Average Hourly Consumption"
         },
         "data_description": {
           "boiler_entity_id": "Select the entity that represents your boiler (switch, climate, binary_sensor, or sensor)",
-          "initial_average_rate": "Average gas consumption per hour when the boiler is running"
+          "average_rate_per_h": "Average gas consumption per hour when the boiler is running"
         }
       }
     },
