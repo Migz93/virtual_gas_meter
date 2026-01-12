@@ -11,7 +11,8 @@ UNIT_OPTIONS = [UNIT_M3, UNIT_CCF]
 CONF_BOILER_ENTITY = "boiler_entity_id"
 CONF_UNIT = "unit"
 CONF_INITIAL_METER_READING = "initial_meter_reading"
-CONF_INITIAL_AVERAGE_RATE = "initial_average_rate"
+CONF_INITIAL_AVERAGE_RATE = "initial_average_rate"  # Used in initial setup
+CONF_AVERAGE_RATE = "average_rate_per_h"  # Used in options flow
 
 # Storage keys
 STORAGE_VERSION = 1
@@ -43,3 +44,6 @@ UPDATE_INTERVAL = 60
 
 # Decimal places
 DECIMAL_PLACES = 3
+
+# Time constants
+MINUTES_PER_HOUR = 60

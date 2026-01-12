@@ -69,7 +69,7 @@ class VGMGasMeterTotalSensor(RestoreEntity, SensorEntity):
         if unit == UNIT_M3:
             self._attr_native_unit_of_measurement = UnitOfVolume.CUBIC_METERS
         else:  # CCF
-            self._attr_native_unit_of_measurement = UNIT_CCF
+            self._attr_native_unit_of_measurement = UnitOfVolume.CENTUM_CUBIC_FEET
 
     @property
     def device_info(self):
@@ -87,7 +87,7 @@ class VGMGasMeterTotalSensor(RestoreEntity, SensorEntity):
         return {
             "last_real_meter_reading": self._coordinator.get_last_real_meter_reading(),
             "last_real_meter_timestamp": self._coordinator.get_last_real_meter_timestamp(),
-            "average_rate_per_h": self._coordinator.get_average_rate_per_h(),
+            "average_rate_per_h": f"{self._coordinator._average_rate_per_h:.{DECIMAL_PLACES}f}",
             "boiler_entity_id": self._coordinator.get_boiler_entity_id(),
             "unit": self._unit,
         }
@@ -118,7 +118,7 @@ class VGMConsumedGasSensor(RestoreEntity, SensorEntity):
         if unit == UNIT_M3:
             self._attr_native_unit_of_measurement = UnitOfVolume.CUBIC_METERS
         else:  # CCF
-            self._attr_native_unit_of_measurement = UNIT_CCF
+            self._attr_native_unit_of_measurement = UnitOfVolume.CENTUM_CUBIC_FEET
 
     @property
     def device_info(self):

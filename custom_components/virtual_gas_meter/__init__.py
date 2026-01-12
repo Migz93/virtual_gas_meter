@@ -16,6 +16,7 @@ from homeassistant.const import (
     STATE_UNKNOWN,
 )
 from homeassistant.core import HomeAssistant, ServiceCall, callback
+from homeassistant.util import dt as dt_util
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.event import async_track_state_change_event, async_track_time_interval
 from homeassistant.helpers.storage import Store
@@ -41,6 +42,7 @@ from .const import (
     SENSOR_GAS_METER_TOTAL,
     SENSOR_CONSUMED_GAS,
     SENSOR_HEATING_INTERVAL,
+    MINUTES_PER_HOUR,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -115,7 +117,7 @@ class VirtualGasMeterCoordinator:
         
         # Runtime state
         self._last_real_meter_reading: float = self._initial_meter_reading
-        self._last_real_meter_timestamp: datetime = datetime.now()
+        self._last_real_meter_timestamp: datetime = dt_util.now()
         self._average_rate_per_h: float = self._initial_average_rate
         self._consumed_gas: float = 0.0
         self._heating_interval_minutes: int = 0
@@ -160,7 +162,7 @@ class VirtualGasMeterCoordinator:
         state = self.hass.states.get(self._boiler_entity_id)
         if state:
             self._boiler_last_state = self._get_boiler_state(state.state)
-            self._boiler_state_change_time = datetime.now()
+            self._boiler_state_change_time = dt_util.now()
 
     async def async_unload(self) -> None:
         """Unload the coordinator."""
@@ -202,8 +204,8 @@ class VirtualGasMeterCoordinator:
 
     def get_heating_interval_string(self) -> str:
         """Get heating interval as string."""
-        hours = self._heating_interval_minutes // 60
-        minutes = self._heating_interval_minutes % 60
+        hours = self._heating_interval_minutes // MINUTES_PER_HOUR
+        minutes = self._heating_interval_minutes % MINUTES_PER_HOUR
         return f"{hours}h {minutes}m"
 
     def _get_boiler_state(self, state_str: str) -> str:
@@ -251,7 +253,7 @@ class VirtualGasMeterCoordinator:
             self._perform_tick()
         
         self._boiler_last_state = current_boiler_state
-        self._boiler_state_change_time = datetime.now()
+        self._boiler_state_change_time = dt_util.now()
 
     @callback
     def _handle_interval_update(self, now: datetime) -> None:
@@ -265,7 +267,7 @@ class VirtualGasMeterCoordinator:
         self._heating_interval_minutes += 1
         
         # Calculate consumption increment
-        consumed_increment = self._average_rate_per_h / 60.0
+        consumed_increment = self._average_rate_per_h / MINUTES_PER_HOUR
         self._consumed_gas += consumed_increment
         
         _LOGGER.debug(
@@ -290,7 +292,7 @@ class VirtualGasMeterCoordinator:
     async def handle_real_meter_reading_update(self, call: ServiceCall) -> None:
         """Handle real meter reading update service call."""
         meter_reading = call.data[ATTR_METER_READING]
-        timestamp = call.data.get(ATTR_TIMESTAMP, datetime.now())
+        timestamp = call.data.get(ATTR_TIMESTAMP, dt_util.now())
         recalculate = call.data.get(ATTR_RECALCULATE_AVERAGE_RATE, True)
         
         # Validation: meter_reading must be >= last_real
@@ -304,7 +306,7 @@ class VirtualGasMeterCoordinator:
         
         old_reading = self._last_real_meter_reading
         runtime_minutes = self._heating_interval_minutes
-        runtime_hours = runtime_minutes / 60.0
+        runtime_hours = runtime_minutes / MINUTES_PER_HOUR
         
         # If runtime is zero, just snap the values
         if runtime_minutes == 0:
@@ -365,7 +367,7 @@ class VirtualGasMeterCoordinator:
                 "last_real_meter_reading", self._initial_meter_reading
             )
             self._last_real_meter_timestamp = datetime.fromisoformat(
-                data.get("last_real_meter_timestamp", datetime.now().isoformat())
+                data.get("last_real_meter_timestamp", dt_util.now().isoformat())
             )
             self._average_rate_per_h = data.get(
                 "average_rate_per_h", self._initial_average_rate
@@ -389,8 +391,6 @@ class VirtualGasMeterCoordinator:
             "average_rate_per_h": self._average_rate_per_h,
             "consumed_gas": self._consumed_gas,
             "heating_interval_minutes": self._heating_interval_minutes,
-            "unit": self._unit,
-            "boiler_entity_id": self._boiler_entity_id,
         }
         
         await self._store.async_save(data)
