@@ -39,7 +39,7 @@ from .const import (
     DEVICE_MODEL,
     UPDATE_INTERVAL,
     DECIMAL_PLACES,
-    SENSOR_GAS_METER_TOTAL,
+    SENSOR_VIRTUAL_GAS_METER_TOTAL,
     SENSOR_CONSUMED_GAS,
     SENSOR_HEATING_INTERVAL,
     MINUTES_PER_HOUR,
@@ -181,8 +181,8 @@ class VirtualGasMeterCoordinator:
         """Get boiler entity ID."""
         return self._boiler_entity_id
 
-    def get_gas_meter_total(self) -> float:
-        """Get gas meter total."""
+    def get_virtual_gas_meter_total(self) -> float:
+        """Get virtual gas meter total."""
         total = self._last_real_meter_reading + self._consumed_gas
         return round(total, DECIMAL_PLACES)
 
@@ -275,7 +275,7 @@ class VirtualGasMeterCoordinator:
             self.get_heating_interval_string(),
             consumed_increment,
             self._consumed_gas,
-            self.get_gas_meter_total(),
+            self.get_virtual_gas_meter_total(),
         )
         
         # Update sensors

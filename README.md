@@ -33,7 +33,7 @@ The integration supports both **metric (m³)** and **imperial (CCF)** unit syste
    - Open HACS in Home Assistant.
    - Navigate to `Integrations` and click the three-dot menu.
    - Select `Custom Repositories`.
-   - Add the repository URL: `https://github.com/Migz93/virtual_gas_meter`.
+   - Add the repository URL: `https://github.com/Migz93/ha-virtual_gas_meter`.
    - Choose `Integration` as the category and click `Add`.
 3. **Download the Integration:**
    - Search for `Virtual Gas Meter` in HACS and download it.
@@ -41,7 +41,7 @@ The integration supports both **metric (m³)** and **imperial (CCF)** unit syste
 
 ### Manual Installation
 1. Download the repository as a ZIP file and extract it.
-2. Copy the `custom_components/gas_meter` folder into your Home Assistant `config/custom_components/` directory.
+2. Copy the `custom_components/virtual_gas_meter` folder into your Home Assistant `config/custom_components/` directory.
 3. Restart Home Assistant.
 
 ## Configuration
@@ -104,7 +104,7 @@ The **Gas Meter Total** sensor (`sensor.vgm_gas_meter_total`) is designed to wor
 
 ## Services
 
-### `gas_meter.real_meter_reading_update`
+### `virtual_gas_meter.real_meter_reading_update`
 Update the virtual gas meter with a real meter reading to calibrate and improve accuracy.
 
 **Why use this service?**
@@ -124,14 +124,14 @@ Update the virtual gas meter with a real meter reading to calibrate and improve 
 
 Basic usage (recalculates average rate):
 ```yaml
-service: gas_meter.real_meter_reading_update
+service: virtual_gas_meter.real_meter_reading_update
 data:
   meter_reading: 4447.816
 ```
 
 With custom timestamp:
 ```yaml
-service: gas_meter.real_meter_reading_update
+service: virtual_gas_meter.real_meter_reading_update
 data:
   meter_reading: 4447.816
   timestamp: "2025-02-12 15:51:00"
@@ -139,7 +139,7 @@ data:
 
 Snap meter total without recalculating rate:
 ```yaml
-service: gas_meter.real_meter_reading_update
+service: virtual_gas_meter.real_meter_reading_update
 data:
   meter_reading: 4447.816
   recalculate_average_rate: false
@@ -157,7 +157,7 @@ data:
 The integration automatically tracks boiler runtime and estimates gas consumption based on the configured average hourly rate. No manual intervention is required for day-to-day operation.
 
 ### Calibration for Accuracy
-Periodically enter real meter readings using the `gas_meter.real_meter_reading_update` service to maintain accuracy:
+Periodically enter real meter readings using the `virtual_gas_meter.real_meter_reading_update` service to maintain accuracy:
 
 1. Check your physical gas meter reading
 2. Call the service with your current meter reading
@@ -207,7 +207,7 @@ The integration consists of the following files:
 
 ## Support
 
-For issues or feature requests, please visit the [GitHub Issue Tracker](https://github.com/Migz93/virtual_gas_meter/issues).
+For issues or feature requests, please visit the [GitHub Issue Tracker](https://github.com/Migz93/ha-virtual_gas_meter/issues).
 
 ## Credits
 
@@ -225,14 +225,13 @@ This project is licensed under the MIT License. See [LICENSE](LICENSE) for detai
 
 [buymecoffee]: https://www.buymeacoffee.com/Migz93
 [buymecoffeebadge]: https://img.shields.io/badge/buy%20me%20a%20coffee-donate-yellow.svg?style=for-the-badge
-[commits-shield]: https://img.shields.io/github/commit-activity/y/migz93/virtual_gas_meter.svg?style=for-the-badge
-[commits]: https://github.com/migz93/virtual_gas_meter/commits/main
+[commits-shield]: https://img.shields.io/github/commit-activity/y/migz93/ha-virtual_gas_meter.svg?style=for-the-badge
+[commits]: https://github.com/migz93/ha-virtual_gas_meter/commits/main
 [hacs]: https://hacs.xyz
 [hacsbadge]: https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge
-[exampleimg]: https://raw.githubusercontent.com/migz93/virtual_gas_meter/main/example.png
-[license]: https://github.com/migz93/virtual_gas_meter/blob/main/LICENSE
+[license]: https://github.com/migz93/ha-virtual_gas_meter/blob/main/LICENSE
 [license-shield]: https://img.shields.io/github/license/custom-components/integration_blueprint.svg?style=for-the-badge
 [maintenance-shield]: https://img.shields.io/badge/maintainer-Migz93-blue.svg?style=for-the-badge
-[releases-shield]: https://img.shields.io/github/release/migz93/virtual_gas_meter.svg?style=for-the-badge
-[releases]: https://github.com/migz93/virtual_gas_meter/releases
+[releases-shield]: https://img.shields.io/github/release/migz93/ha-virtual_gas_meter.svg?style=for-the-badge
+[releases]: https://github.com/migz93/ha-virtual_gas_meter/releases
 [user_profile]: https://github.com/migz93

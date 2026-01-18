@@ -21,7 +21,7 @@ from .const import (
     CONF_UNIT,
     UNIT_M3,
     UNIT_CCF,
-    SENSOR_GAS_METER_TOTAL,
+    SENSOR_VIRTUAL_GAS_METER_TOTAL,
     SENSOR_CONSUMED_GAS,
     SENSOR_HEATING_INTERVAL,
     DECIMAL_PLACES,
@@ -62,7 +62,7 @@ class VGMGasMeterTotalSensor(RestoreEntity, SensorEntity):
         self._coordinator = coordinator
         self._config_entry = config_entry
         self._unit = unit
-        self._attr_unique_id = f"{config_entry.entry_id}_{SENSOR_GAS_METER_TOTAL}"
+        self._attr_unique_id = f"{config_entry.entry_id}_{SENSOR_VIRTUAL_GAS_METER_TOTAL}"
         self._attr_name = "Gas Meter Total"
         
         # Set unit of measurement
@@ -79,7 +79,7 @@ class VGMGasMeterTotalSensor(RestoreEntity, SensorEntity):
     @property
     def native_value(self) -> float | None:
         """Return the state of the sensor."""
-        return self._coordinator.get_gas_meter_total()
+        return self._coordinator.get_virtual_gas_meter_total()
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -95,7 +95,7 @@ class VGMGasMeterTotalSensor(RestoreEntity, SensorEntity):
     async def async_added_to_hass(self) -> None:
         """Handle entity added to hass."""
         await super().async_added_to_hass()
-        self._coordinator.register_sensor(SENSOR_GAS_METER_TOTAL, self)
+        self._coordinator.register_sensor(SENSOR_VIRTUAL_GAS_METER_TOTAL, self)
 
 
 class VGMConsumedGasSensor(RestoreEntity, SensorEntity):

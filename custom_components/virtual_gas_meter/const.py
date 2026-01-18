@@ -1,6 +1,6 @@
 """Constants for Virtual Gas Meter v3."""
 
-DOMAIN = "gas_meter"
+DOMAIN = "virtual_gas_meter"
 
 # Unit options
 UNIT_M3 = "m3"
@@ -16,10 +16,10 @@ CONF_AVERAGE_RATE = "average_rate_per_h"  # Used in options flow
 
 # Storage keys
 STORAGE_VERSION = 1
-STORAGE_KEY = "gas_meter_v3"
+STORAGE_KEY = "virtual_gas_meter_v3"
 
 # Sensor entity IDs
-SENSOR_GAS_METER_TOTAL = "vgm_gas_meter_total"
+SENSOR_VIRTUAL_GAS_METER_TOTAL = "vgm_gas_meter_total"
 SENSOR_CONSUMED_GAS = "vgm_consumed_gas"
 SENSOR_HEATING_INTERVAL = "vgm_heating_interval"
 
@@ -34,7 +34,7 @@ ATTR_RECALCULATE_AVERAGE_RATE = "recalculate_average_rate"
 # Device info
 DEVICE_NAME = "Virtual Gas Meter"
 DEVICE_MANUFACTURER = "Virtual Gas Meter"
-DEVICE_MODEL = "Boiler Runtime Estimator"
+DEVICE_MODEL = "Gas Usage Estimator"
 
 # Allowed boiler entity domains
 ALLOWED_BOILER_DOMAINS = ["switch", "climate", "binary_sensor", "sensor"]

@@ -1,12 +1,12 @@
 {
-  "domain": "gas_meter",
+  "domain": "virtual_gas_meter",
   "name": "Virtual Gas Meter",
   "codeowners": ["@Migz93"],
   "config_flow": true,
-  "documentation": "https://github.com/Migz93/virtual_gas_meter",
+  "documentation": "https://github.com/Migz93/ha-virtual_gas_meter",
   "integration_type": "device",
   "iot_class": "calculated",
-  "issue_tracker": "https://github.com/Migz93/virtual_gas_meter/issues",
+  "issue_tracker": "https://github.com/Migz93/ha-virtual_gas_meter/issues",
   "requirements": [],
-  "version": "3.1.0"
+  "version": "3.2.0"
 }
